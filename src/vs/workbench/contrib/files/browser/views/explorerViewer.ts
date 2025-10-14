@@ -35,13 +35,13 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IDragAndDropData, DataTransfers } from '../../../../../base/browser/dnd.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { NativeDragAndDropData, ExternalElementsDragAndDropData, ElementsDragAndDropData, ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
-import { isMacintosh, isWeb } from '../../../../../base/common/platform.js';
+import { isMacintosh, isWeb, OS } from '../../../../../base/common/platform.js';
 import { IDialogService, getFileNamesMessage } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkspaceFolderCreationData } from '../../../../../platform/workspaces/common/workspaces.js';
-import { findValidPasteFileTarget } from '../fileActions.js';
+import { findValidPasteFileTarget, validateFileName, refreshIfSeparator } from '../fileActions.js';
 import { FuzzyScore, createMatches } from '../../../../../base/common/filters.js';
 import { Emitter, Event, EventMultiplexer } from '../../../../../base/common/event.js';
 import { IAsyncDataTreeViewState, IAsyncFindProvider, IAsyncFindResult, IAsyncFindToggles, ITreeCompressionDelegate } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
@@ -74,6 +74,10 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { CountBadge } from '../../../../../base/browser/ui/countBadge/countBadge.js';
 import { listFilterMatchHighlight, listFilterMatchHighlightBorder } from '../../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
+import * as nls from '../../../../../nls.js';
+import * as resources from '../../../../../base/common/resources.js';
+import { IPathService } from '../../../../services/path/common/pathService.js';
+import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -855,7 +859,10 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		@ILabelService private readonly labelService: ILabelService,
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
-		@IInstantiationService private readonly instantiationService: IInstantiationService
+		@IInstantiationService private readonly instantiationService: IInstantiationService,
+		@IPathService private readonly pathService: IPathService,
+		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
+		@INotificationService private readonly notificationService: INotificationService
 	) {
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
 
@@ -1143,6 +1150,45 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 					}
 				} else if (e.equals(KeyCode.Escape)) {
 					done(false, true);
+				} else if (e.equals(KeyCode.Tab)) {
+					if (!inputBox.validate()) {
+						done(true, true);
+						// setEditable on the next element
+						if (stat.parent) {
+							const siblings = Array.from(stat.parent.children.values());
+							const currentIndex = siblings.findIndex(item => item === stat);
+							if (currentIndex !== -1 && currentIndex < siblings.length - 1) {
+								const nextElement = siblings[currentIndex + 1];
+								console.log('NEXT ELEMENT', nextElement);
+								// Get OS asynchronously
+								this.remoteAgentService.getEnvironment().then(async (env) => {
+									const os = env?.os ?? OS;
+									await this.explorerService.setEditable(nextElement, {
+										validationMessage: value => validateFileName(this.pathService, nextElement, value, os),
+										onFinish: async (value, success) => {
+											if (success) {
+												const parentResource = nextElement.parent!.resource;
+												const targetResource = resources.joinPath(parentResource, value);
+												if (nextElement.resource.toString() !== targetResource.toString()) {
+													try {
+														await this.explorerService.applyBulkEdit([new ResourceFileEdit(nextElement.resource, targetResource)], {
+															confirmBeforeUndo: this.configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo === UndoConfirmLevel.Verbose,
+															undoLabel: nls.localize('renameBulkEdit', "Rename {0} to {1}", nextElement.name, value),
+															progressLabel: nls.localize('renamingBulkEdit', "Renaming {0} to {1}", nextElement.name, value),
+														});
+														await refreshIfSeparator(value, this.explorerService);
+													} catch (e) {
+														this.notificationService.error(e);
+													}
+												}
+											}
+											await this.explorerService.setEditable(nextElement, null);
+										}
+									});
+								});
+							}
+						}
+					}
 				}
 			}),
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_UP, (e: IKeyboardEvent) => {

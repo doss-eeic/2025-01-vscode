@@ -241,6 +241,7 @@ export class ExplorerService implements IExplorerService {
 		}
 		const isEditing = this.isEditable(stat);
 		try {
+			console.log('setEditable', stat, isEditing);
 			await this.view.setEditable(stat, isEditing);
 		} catch {
 			return;
