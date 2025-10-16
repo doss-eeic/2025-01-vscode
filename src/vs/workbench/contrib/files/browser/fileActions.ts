@@ -1007,28 +1007,36 @@ export const renameHandler = async (accessor: ServicesAccessor) => {
 
 	const os = (await remoteAgentService.getEnvironment())?.os ?? OS;
 
-	await explorerService.setEditable(stat, {
-		validationMessage: value => validateFileName(pathService, stat, value, os),
-		onFinish: async (value, success) => {
-			console.log('value at RenameHandler.onFinish', value, success);
-			if (success) {
-				const parentResource = stat.parent!.resource;
-				const targetResource = resources.joinPath(parentResource, value);
-				if (stat.resource.toString() !== targetResource.toString()) {
-					try {
-						await explorerService.applyBulkEdit([new ResourceFileEdit(stat.resource, targetResource)], {
-							confirmBeforeUndo: configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo === UndoConfirmLevel.Verbose,
-							undoLabel: nls.localize('renameBulkEdit', "Rename {0} to {1}", stat.name, value),
-							progressLabel: nls.localize('renamingBulkEdit', "Renaming {0} to {1}", stat.name, value),
-						});
-						await refreshIfSeparator(value, explorerService);
-					} catch (e) {
-						notificationService.error(e);
-					}
+	async function onFinish(stat_arg: ExplorerItem, value: string, success: boolean, next: ExplorerItem | null): Promise<void> {
+		if (success) {
+			const parentResource = stat_arg.parent!.resource;
+			const targetResource = resources.joinPath(parentResource, value);
+			if (stat_arg.resource.toString() !== targetResource.toString()) {
+				try {
+					await explorerService.applyBulkEdit([new ResourceFileEdit(stat_arg.resource, targetResource)], {
+						confirmBeforeUndo: configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo === UndoConfirmLevel.Verbose,
+						undoLabel: nls.localize('renameBulkEdit', "Rename {0} to {1}", stat_arg.name, value),
+						progressLabel: nls.localize('renamingBulkEdit', "Renaming {0} to {1}", stat_arg.name, value),
+					});
+					await refreshIfSeparator(value, explorerService);
+				} catch (e) {
+					notificationService.error(e);
 				}
 			}
-			await explorerService.setEditable(stat, null);
 		}
+		if (next) {
+			await explorerService.setEditable(next, {
+				validationMessage: (value: string) => validateFileName(pathService, next, value, os),
+				onFinish: (value, success, next_arg) => onFinish(next, value, success, next_arg)
+			});
+		} else {
+			await explorerService.setEditable(stat_arg, null);
+		}
+	}
+
+	await explorerService.setEditable(stat, {
+		validationMessage: (value: string) => validateFileName(pathService, stat, value, os),
+		onFinish: (value, success, next) => onFinish(stat, value, success, next)
 	});
 };
 

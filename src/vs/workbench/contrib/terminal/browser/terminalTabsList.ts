@@ -449,7 +449,7 @@ class TerminalTabsRenderer extends Disposable implements IListRenderer<ITerminal
 			dispose(toDispose);
 			inputBox.element.remove();
 			if (finishEditing) {
-				editableData.onFinish(value, success);
+				editableData.onFinish(value, success, null);
 			}
 		});
 

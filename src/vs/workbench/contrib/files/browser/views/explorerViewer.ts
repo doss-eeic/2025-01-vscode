@@ -1097,13 +1097,13 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		inputBox.focus();
 		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 
-		const done = createSingleCallFunction((success: boolean, finishEditing: boolean) => {
+		const done = createSingleCallFunction((success: boolean, finishEditing: boolean, next: ExplorerItem | null) => {
 			label.element.style.display = 'none';
 			const value = inputBox.value;
 			dispose(toDispose);
 			label.element.remove();
 			if (finishEditing) {
-				editableData.onFinish(value, success);
+				editableData.onFinish(value, success, next);
 			}
 		});
 
@@ -1128,7 +1128,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			inputBox.onDidChange(value => {
 				label.setFile(joinPath(parent, value || ' '), labelOptions); // update label icon while typing!
 			}),
-			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
+			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, async (e: IKeyboardEvent) => {
 				if (e.equals(KeyCode.F2)) {
 					const dotIndex = inputBox.value.lastIndexOf('.');
 					if (stat.isDirectory || dotIndex === -1) {
@@ -1146,77 +1146,53 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 					}
 				} else if (e.equals(KeyCode.Enter)) {
 					if (!inputBox.validate()) {
-						done(true, true);
+						done(true, true, null);
 					}
 				} else if (e.equals(KeyCode.Escape)) {
-					done(false, true);
+					done(false, true, null);
 				} else if (e.equals(KeyCode.Tab)) {
 					if (!inputBox.validate()) {
-						done(true, true);
 						// setEditable on the next element
+						let next: ExplorerItem | null = null;
 						if (stat.parent) {
 							const siblings = Array.from(stat.parent.children.values());
 							const currentIndex = siblings.findIndex(item => item === stat);
 							if (currentIndex !== -1 && currentIndex < siblings.length - 1) {
 								const nextElement = siblings[currentIndex + 1];
 								console.log('NEXT ELEMENT', nextElement);
-								// Get OS asynchronously
-								this.remoteAgentService.getEnvironment().then(async (env) => {
-									const os = env?.os ?? OS;
-									await this.explorerService.setEditable(nextElement, {
-										validationMessage: value => validateFileName(this.pathService, nextElement, value, os),
-										onFinish: async (value, success) => {
-											if (success) {
-												const parentResource = nextElement.parent!.resource;
-												const targetResource = resources.joinPath(parentResource, value);
-												if (nextElement.resource.toString() !== targetResource.toString()) {
-													try {
-														await this.explorerService.applyBulkEdit([new ResourceFileEdit(nextElement.resource, targetResource)], {
-															confirmBeforeUndo: this.configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo === UndoConfirmLevel.Verbose,
-															undoLabel: nls.localize('renameBulkEdit', "Rename {0} to {1}", nextElement.name, value),
-															progressLabel: nls.localize('renamingBulkEdit', "Renaming {0} to {1}", nextElement.name, value),
-														});
-														await refreshIfSeparator(value, this.explorerService);
-													} catch (e) {
-														this.notificationService.error(e);
-													}
-												}
-											}
-											await this.explorerService.setEditable(nextElement, null);
-										}
-									});
-								});
+								next = nextElement;
 							}
 						}
+						done(true, true, next);
 					}
 				}
 			}),
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_UP, (e: IKeyboardEvent) => {
 				showInputBoxNotification();
 			}),
-			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, async () => {
-				while (true) {
-					await timeout(0);
+			// DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, async () => {
+			// 	while (true) {
+			// 		await timeout(0);
 
-					const ownerDocument = inputBox.inputElement.ownerDocument;
-					if (!ownerDocument.hasFocus()) {
-						break;
-					} if (DOM.isActiveElement(inputBox.inputElement)) {
-						return;
-					} else if (DOM.isHTMLElement(ownerDocument.activeElement) && DOM.hasParentWithClass(ownerDocument.activeElement, 'context-view')) {
-						await Event.toPromise(this.contextMenuService.onDidHideContextMenu);
-					} else {
-						break;
-					}
-				}
+			// 		const ownerDocument = inputBox.inputElement.ownerDocument;
+			// 		if (!ownerDocument.hasFocus()) {
+			// 			break;
+			// 		} if (DOM.isActiveElement(inputBox.inputElement)) {
+			// 			return;
+			// 		} else if (DOM.isHTMLElement(ownerDocument.activeElement) && DOM.hasParentWithClass(ownerDocument.activeElement, 'context-view')) {
+			// 			await Event.toPromise(this.contextMenuService.onDidHideContextMenu);
+			// 		} else {
+			// 			break;
+			// 		}
+			// 	}
 
-				done(inputBox.isInputValid(), true);
-			}),
+			// 	done(inputBox.isInputValid(), true, null);
+			// }),
 			label
 		];
 
 		return toDisposable(() => {
-			done(false, false);
+			done(false, false, null);
 		});
 	}
 
