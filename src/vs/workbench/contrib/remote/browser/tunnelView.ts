@@ -528,7 +528,7 @@ class ActionBarRenderer extends Disposable implements ITableRenderer<ActionBarCe
 			inputBox.element.style.display = 'none';
 			const inputValue = inputBox.value;
 			if (finishEditing) {
-				return editableData.onFinish(inputValue, success, null);
+				return editableData.onFinish(inputValue, success, false);
 			}
 		});
 		this.inputDone = done;

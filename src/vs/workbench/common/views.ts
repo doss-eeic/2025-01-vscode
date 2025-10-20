@@ -26,7 +26,6 @@ import { registerIcon } from '../../platform/theme/common/iconRegistry.js';
 import { CancellationToken } from '../../base/common/cancellation.js';
 import { VSDataTransfer } from '../../base/common/dataTransfer.js';
 import { ILocalizedString } from '../../platform/action/common/action.js';
-import { ExplorerItem } from '../contrib/files/common/explorerItem.js';
 
 export const VIEWS_LOG_ID = 'views';
 export const VIEWS_LOG_NAME = localize('views log', "Views");
@@ -862,7 +861,7 @@ export interface IEditableData {
 	validationMessage: (value: string) => { content: string; severity: Severity } | null;
 	placeholder?: string | null;
 	startingValue?: string | null;
-	onFinish: (value: string, success: boolean, next: ExplorerItem | null) => Promise<void>;
+	onFinish: (value: string, success: boolean, have_next: boolean) => Promise<void>;
 }
 
 export interface IViewPaneContainer {

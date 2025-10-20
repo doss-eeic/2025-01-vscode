@@ -1007,7 +1007,7 @@ export const renameHandler = async (accessor: ServicesAccessor) => {
 
 	const os = (await remoteAgentService.getEnvironment())?.os ?? OS;
 
-	async function onFinish(stat_arg: ExplorerItem, value: string, success: boolean, next: ExplorerItem | null): Promise<void> {
+	async function onFinish(stat_arg: ExplorerItem, value: string, success: boolean, have_next: boolean): Promise<void> {
 		if (success) {
 			const parentResource = stat_arg.parent!.resource;
 			const targetResource = resources.joinPath(parentResource, value);
@@ -1024,10 +1024,16 @@ export const renameHandler = async (accessor: ServicesAccessor) => {
 				}
 			}
 		}
-		if (next) {
-			await explorerService.setEditable(next, {
-				validationMessage: (value: string) => validateFileName(pathService, next, value, os),
-				onFinish: (value, success, next_arg) => onFinish(next, value, success, next_arg)
+		if (have_next) {
+			explorerService.focusNext();
+			const next_stats = explorerService.getContext(false);
+			const next_stat = next_stats.length > 0 ? next_stats[0] : undefined;
+			if (!next_stat) {
+				return;
+			}
+			await explorerService.setEditable(next_stat, {
+				validationMessage: (value: string) => validateFileName(pathService, next_stat, value, os),
+				onFinish: (value, success, have_next_arg) => onFinish(next_stat, value, success, have_next_arg)
 			});
 		} else {
 			await explorerService.setEditable(stat_arg, null);

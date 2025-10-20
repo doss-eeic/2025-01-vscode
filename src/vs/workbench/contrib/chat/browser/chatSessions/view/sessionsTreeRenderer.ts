@@ -413,7 +413,7 @@ export class SessionsRenderer extends Disposable implements ITreeRenderer<IChatS
 			}
 
 			if (finishEditing) {
-				editableData.onFinish(value, success, null);
+				editableData.onFinish(value, success, false);
 			}
 		});
 

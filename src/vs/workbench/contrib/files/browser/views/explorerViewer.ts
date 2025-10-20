@@ -35,13 +35,13 @@ import { IInstantiationService } from '../../../../../platform/instantiation/com
 import { IDragAndDropData, DataTransfers } from '../../../../../base/browser/dnd.js';
 import { Schemas } from '../../../../../base/common/network.js';
 import { NativeDragAndDropData, ExternalElementsDragAndDropData, ElementsDragAndDropData, ListViewTargetSector } from '../../../../../base/browser/ui/list/listView.js';
-import { isMacintosh, isWeb, OS } from '../../../../../base/common/platform.js';
+import { isMacintosh, isWeb } from '../../../../../base/common/platform.js';
 import { IDialogService, getFileNamesMessage } from '../../../../../platform/dialogs/common/dialogs.js';
 import { IWorkspaceEditingService } from '../../../../services/workspaces/common/workspaceEditing.js';
 import { URI } from '../../../../../base/common/uri.js';
 import { IEditorService } from '../../../../services/editor/common/editorService.js';
 import { IWorkspaceFolderCreationData } from '../../../../../platform/workspaces/common/workspaces.js';
-import { findValidPasteFileTarget, validateFileName, refreshIfSeparator } from '../fileActions.js';
+import { findValidPasteFileTarget } from '../fileActions.js';
 import { FuzzyScore, createMatches } from '../../../../../base/common/filters.js';
 import { Emitter, Event, EventMultiplexer } from '../../../../../base/common/event.js';
 import { IAsyncDataTreeViewState, IAsyncFindProvider, IAsyncFindResult, IAsyncFindToggles, ITreeCompressionDelegate } from '../../../../../base/browser/ui/tree/asyncDataTree.js';
@@ -74,10 +74,10 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { CountBadge } from '../../../../../base/browser/ui/countBadge/countBadge.js';
 import { listFilterMatchHighlight, listFilterMatchHighlightBorder } from '../../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
-import * as nls from '../../../../../nls.js';
-import * as resources from '../../../../../base/common/resources.js';
-import { IPathService } from '../../../../services/path/common/pathService.js';
-import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
+// import * as nls from '../../../../../nls.js';
+// import * as resources from '../../../../../base/common/resources.js';
+// import { IPathService } from '../../../../services/path/common/pathService.js';
+// import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -860,9 +860,9 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		@IPathService private readonly pathService: IPathService,
-		@IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
-		@INotificationService private readonly notificationService: INotificationService
+		// @IPathService private readonly pathService: IPathService,
+		// @IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
+		// @INotificationService private readonly notificationService: INotificationService
 	) {
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
 
@@ -1097,7 +1097,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		inputBox.focus();
 		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 
-		const done = createSingleCallFunction((success: boolean, finishEditing: boolean, next: ExplorerItem | null) => {
+		const done = createSingleCallFunction((success: boolean, finishEditing: boolean, next: boolean) => {
 			label.element.style.display = 'none';
 			const value = inputBox.value;
 			dispose(toDispose);
@@ -1146,53 +1146,43 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 					}
 				} else if (e.equals(KeyCode.Enter)) {
 					if (!inputBox.validate()) {
-						done(true, true, null);
+						done(true, true, false);
 					}
 				} else if (e.equals(KeyCode.Escape)) {
-					done(false, true, null);
+					done(false, true, false);
 				} else if (e.equals(KeyCode.Tab)) {
+					e.preventDefault();
 					if (!inputBox.validate()) {
-						// setEditable on the next element
-						let next: ExplorerItem | null = null;
-						if (stat.parent) {
-							const siblings = Array.from(stat.parent.children.values());
-							const currentIndex = siblings.findIndex(item => item === stat);
-							if (currentIndex !== -1 && currentIndex < siblings.length - 1) {
-								const nextElement = siblings[currentIndex + 1];
-								console.log('NEXT ELEMENT', nextElement);
-								next = nextElement;
-							}
-						}
-						done(true, true, next);
+						done(true, true, true);
 					}
 				}
 			}),
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_UP, (e: IKeyboardEvent) => {
 				showInputBoxNotification();
 			}),
-			// DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, async () => {
-			// 	while (true) {
-			// 		await timeout(0);
+			DOM.addDisposableListener(inputBox.inputElement, DOM.EventType.BLUR, async () => {
+				while (true) {
+					await timeout(0);
 
-			// 		const ownerDocument = inputBox.inputElement.ownerDocument;
-			// 		if (!ownerDocument.hasFocus()) {
-			// 			break;
-			// 		} if (DOM.isActiveElement(inputBox.inputElement)) {
-			// 			return;
-			// 		} else if (DOM.isHTMLElement(ownerDocument.activeElement) && DOM.hasParentWithClass(ownerDocument.activeElement, 'context-view')) {
-			// 			await Event.toPromise(this.contextMenuService.onDidHideContextMenu);
-			// 		} else {
-			// 			break;
-			// 		}
-			// 	}
+					const ownerDocument = inputBox.inputElement.ownerDocument;
+					if (!ownerDocument.hasFocus()) {
+						break;
+					} if (DOM.isActiveElement(inputBox.inputElement)) {
+						return;
+					} else if (DOM.isHTMLElement(ownerDocument.activeElement) && DOM.hasParentWithClass(ownerDocument.activeElement, 'context-view')) {
+						await Event.toPromise(this.contextMenuService.onDidHideContextMenu);
+					} else {
+						break;
+					}
+				}
 
-			// 	done(inputBox.isInputValid(), true, null);
-			// }),
+				done(inputBox.isInputValid(), true, false);
+			}),
 			label
 		];
 
 		return toDisposable(() => {
-			done(false, false, null);
+			done(false, false, false);
 		});
 	}
 

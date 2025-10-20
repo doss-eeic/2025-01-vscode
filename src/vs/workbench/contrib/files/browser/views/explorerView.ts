@@ -543,7 +543,7 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		this._register(this.tree.onDidScroll(async e => {
 			const editable = this.explorerService.getEditable();
 			if (e.scrollTopChanged && editable && this.tree.getRelativeTop(editable.stat) === null) {
-				await editable.data.onFinish('', false, null);
+				await editable.data.onFinish('', false, false);
 			}
 		}));
 

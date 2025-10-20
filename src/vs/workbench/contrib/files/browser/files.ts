@@ -45,6 +45,7 @@ export interface IExplorerService {
 	select(resource: URI, reveal?: boolean | string): Promise<void>;
 
 	registerView(contextAndRefreshProvider: IExplorerView): void;
+	focusNext(): void;
 }
 
 export const IExplorerService = createDecorator<IExplorerService>('explorerService');

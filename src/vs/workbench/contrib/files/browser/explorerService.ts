@@ -158,6 +158,12 @@ export class ExplorerService implements IExplorerService {
 		this.view = contextProvider;
 	}
 
+	focusNext(): void {
+		if (this.view) {
+			this.view.focusNext();
+		}
+	}
+
 	getContext(respectMultiSelection: boolean, ignoreNestedChildren: boolean = false): ExplorerItem[] {
 		if (!this.view) {
 			return [];
