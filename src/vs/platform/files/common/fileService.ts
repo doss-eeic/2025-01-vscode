@@ -729,7 +729,12 @@ export class FileService extends Disposable implements IFileService {
 	}
 
 	private async validateReadFile(resource: URI, options?: IReadFileStreamOptions): Promise<IFileStatWithMetadata> {
-		const stat = await this.resolve(resource, { resolveMetadata: true });
+		let fetched_stat = await this.resolve(resource, { resolveMetadata: true });
+		//overwrite readonly property to true for debug purposes
+		const stat: IFileStatWithMetadata = {
+			...fetched_stat,
+			readonly: true
+		};
 
 		// Throw if resource is a directory
 		if (stat.isDirectory) {
