@@ -101,12 +101,20 @@ export class DiskFileSystemProviderClient extends Disposable implements
 		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
 		const disposables = new DisposableStore();
 
+		let bytesRemain = opts.limits?.size ?? Number.MAX_SAFE_INTEGER;
 		// Reading as file stream goes through an event to the remote side
 		disposables.add(this.channel.listen<ReadableStreamEventPayload<VSBuffer>>('readFileStream', [resource, opts])(dataOrErrorOrEnd => {
 
 			// data
 			if (dataOrErrorOrEnd instanceof VSBuffer) {
-				stream.write(dataOrErrorOrEnd.buffer);
+				if (bytesRemain < dataOrErrorOrEnd.byteLength) {
+					stream.write(dataOrErrorOrEnd.slice(0, bytesRemain).buffer);
+					bytesRemain = 0;
+					stream.end();
+				} else {
+					stream.write(dataOrErrorOrEnd.buffer);
+					bytesRemain -= dataOrErrorOrEnd.byteLength;
+				}
 			}
 
 			// end or error

@@ -735,6 +735,7 @@ export class PieceTreeBase {
 		return resultLen;
 	}
 
+	// search implementation
 	public findMatchesLineByLine(searchRange: Range, searchData: SearchData, captureMatches: boolean, limitResultCount: number): FindMatch[] {
 		const result: FindMatch[] = [];
 		let resultLen = 0;
