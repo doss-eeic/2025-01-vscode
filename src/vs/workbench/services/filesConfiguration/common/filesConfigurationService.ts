@@ -128,6 +128,7 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		sessionReadonly: { value: localize({ key: 'sessionReadonly', comment: ['Please do not translate the word "command", it is part of our internal syntax which must not change', '{Locked="](command:{0})"}'] }, "Editor is read-only because the file was set read-only in this session. [Click here](command:{0}) to set writeable.", 'workbench.action.files.setActiveEditorWriteableInSession'), isTrusted: true },
 		configuredReadonly: { value: localize({ key: 'configuredReadonly', comment: ['Please do not translate the word "command", it is part of our internal syntax which must not change', '{Locked="](command:{0})"}'] }, "Editor is read-only because the file was set read-only via settings. [Click here](command:{0}) to configure or [toggle for this session](command:{1}).", `workbench.action.openSettings?${encodeURIComponent('["files.readonly"]')}`, 'workbench.action.files.toggleActiveEditorReadonlyInSession'), isTrusted: true },
 		fileLocked: { value: localize({ key: 'fileLocked', comment: ['Please do not translate the word "command", it is part of our internal syntax which must not change', '{Locked="](command:{0})"}'] }, "Editor is read-only because of file permissions. [Click here](command:{0}) to set writeable anyway.", 'workbench.action.files.setActiveEditorWriteableInSession'), isTrusted: true },
+		fileLockedLargeFile: { value: localize({ key: 'fileLockedLargeFile', comment: ['Please do not translate the word "command", it is part of our internal syntax which must not change', '{Locked="](command:{0})"}'] }, "Editor is read-only because the file is large. [Click here](command:{0}) to set writeable anyway.", 'workbench.action.files.setActiveEditorWriteableInSession'), isTrusted: true },
 		fileReadonly: { value: localize('fileReadonly', "Editor is read-only because the file is read-only."), isTrusted: true }
 	};
 
@@ -229,6 +230,12 @@ export class FilesConfigurationService extends Disposable implements IFilesConfi
 		// check if file is locked and configured to treat as readonly
 		if (this.configuredReadonlyFromPermissions && stat?.locked) {
 			return FilesConfigurationService.READONLY_MESSAGES.fileLocked;
+		}
+const configuredSizeLimitMb = this.textResourceConfigurationService.inspect<number>(resource, null, 'workbench.editorLargeFileConfirmation');
+const bufferLimit = configuredSizeLimitMb?.value ? configuredSizeLimitMb.value * 1024 * 1024 : Number.MAX_SAFE_INTEGER;
+		if (stat!==undefined && stat.size!==undefined
+			&& stat.size > bufferLimit) {
+			return FilesConfigurationService.READONLY_MESSAGES.fileLockedLargeFile;
 		}
 
 		// check if file is marked readonly from the file system provider
