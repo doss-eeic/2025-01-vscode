@@ -1121,7 +1121,7 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 			inputBox.onDidChange(value => {
 				label.setFile(joinPath(parent, value || ' '), labelOptions); // update label icon while typing!
 			}),
-			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, async (e: IKeyboardEvent) => {
+			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent) => {
 				if (e.equals(KeyCode.F2)) {
 					const dotIndex = inputBox.value.lastIndexOf('.');
 					if (stat.isDirectory || dotIndex === -1) {
