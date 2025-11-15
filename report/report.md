@@ -95,9 +95,62 @@ npm run watch
 UI まわりのデバッグでは、これを使わないとかなり厳しいので重要です。
 
 ## 機能1. Tab キーで名前の変更を連続して行う
+### コード箇所の特定
+始めに、名前変更機能に関連するコード箇所を特定します。
+ファイルエクスプローラ部分の機能なので、`workbench` レイヤに絞ります。
+
+まず、ファイル名の編集状態に入る処理のスタート地点を探しました。
+編集状態に入る際のキーボードショートカット（F2キー）に注目し、`KeyCode.F2` というキーワードで検索を行いました。
+その結果、`workbench/contrib/files/browser/fileActions.contribution.ts` に関連コードを発見しました。
+そこから `workbench/contribu/files/browser/fileActions.ts` に定義された `renameHandler` 関数を特定しました。
+
+次に、編集を確定して通常の状態に戻る処理のスタート地点を探しました。
+ファイル名の編集中にも F2 キーを押すと処理が走る（ファイル名の選択部分が変わる）ことに注目し、再び `KeyCode.F2` の検索結果を見直しました。
+その結果、`workbench/contrib/files/browser/views/explorerViewer.ts` に定義された `FilesRenderer` クラスを特定しました。
+
+### 編集状態に入る際の処理の詳細を追う
+1. `renameHandler` は、`explorerService.getContext` からエクスプローラ部分で現在フォーカス中のファイルの情報を取得します。そして、`explorerService.setEditable` 関数に選択中のファイル情報と、編集終了時に呼んでもらうコールバック関数 (`onFinish`) を渡します。
+1. `explorerService.setEditable` 関数は、指定されたファイルを「編集状態」として、`onFinish` と共に内部に記憶しておきます。そのうえで、`ExplorerView.setEditable` 関数に編集したいファイルの情報を転送します。 ※「編集状態」にあるファイルは多くても1つのみです。
+1. `ExplorerView.setEditable` 関数は、渡されたファイルの**親ディレクトリ**を指定して、エクスプローラのツリーコンポーネントについて、そのディレクトリ以下の部分の再レンダリングを走らせます。このタイミングで「どのファイルを編集したいのか」という情報は引数のバケツリレーからは失われます。
+1. かなりのコールスタックを積み重ねて、ツリーの再レンダリング処理は `workbench/contrib/files/browser/views/explorerViewer.ts` の `FilesRenderer.renderElement` 関数に至ります。ここで `explorerSerivice.getEditableData` 関数により、「編集状態」にあるファイルの情報を問い合わせて取得します。そして、これに一致するファイルのツリーコンポーネントの場合のみ、`FilesRenderer.renderInputBox` 関数を呼び出します。この際に、先述の `onFinish` も渡します。
+
+### 編集状態を終える際の処理の詳細を追う
+1. 編集状態でエンターキーやエスケープキーを押すと、`FilesRenderer.renderInputBox` 内の `DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent)` の箇所で定義されているリスナーがトリガされ、`done` 関数が呼ばれます。
+1. `done` 関数では、入力ボックスの中身（新しいファイル名）などを引数に渡して `onFinish` を呼び出します。
+1. `onFinish` は、ファイルの読み書きAPIを呼んでファイル名の変更を行った後、`explorerService.setEditable` に `null` を渡して「編集状態」をクリアします。
+
+### コード変更
+一連の処理の最後の、`explorerService.setEditable` に `null` を渡して「編集状態」をクリアする部分に注目しました。
+名前の編集が完了したファイルの次のファイル情報を `null` の代わりに渡せば、ツリーの再レンダリングによって次のファイル用の入力ボックスをレンダリングさせ、次のファイルの編集状態にスムーズに遷移することができます。
+
+「次のファイル」を取得するにあたっては、既存コードの「フォーカス中のファイル情報の取得」の機能を再利用するために、「フォーカスを１つ進める」という処理を、情報取得前に入れることで実装しました。具体的には、以下のようにして実装しました。
+```ts
+const viewsService = accessor.get(IViewsService);
+const view = viewsService.getViewWithId(VIEW_ID);
+const explorerView = view as ExplorerView;
+explorerView.focuxNext();
+const next_stats = explorerService.getContext(false); // 次ファイル情報
+```
+そして `onFinish` の引数に `have_next: boolean` を追加し、false の場合には既存コードと同様の処理を行い、true の場合には上記で取得した次ファイル情報を使って `explorerService.setEditable` を呼ぶように変更しました。
+
+次に、`FilesRenderer.renderInputBox` 内の先述のリスナーに、Tabキーのリスナーを追加し`done` を呼ぶようにしました。
+`done` でも `next: boolean` を引数に追加して内部の `onFinish` の呼び出しの際に `have_next` に転送するようにしておき、既存コードにおける `done` の呼び出しでは全て false、Tabキーから呼ぶ箇所だけ true にセットしました。
+
+このとき、Tab キーのデフォルト動作である「フォーカスを次のコンポーネントに移動する」という動作を以下のコードによって無効化する必要があります。
+```ts
+e.preventDefault();
+```
+実は `FilesRenderer.renderInputBox` には、「この入力ボックスからフォーカスが外れた場合には編集状態をキャンセルして終了する」という処理を走らせるためのリスナーが存在しています。
+このリスナーのおかげで、編集中にエディタ部分をクリックしたりすると、自動でファイル名の編集状態を終了してくれたりするのですが、これが上記の Tab キーのデフォルト動作と致命的なミスマッチとなってしまいます。
+そのため、無効化を入れる必要がありました。
+
+### 完成品
+以上のコード変更によって、このように目標の機能を実装することができました。
+![vscodeエクスプローラのTabキーの挙動](vscode_explorer_tab.gif)
 
 ## 機能2. 巨大ファイルをメモリ消費を抑えつつプレビューする
 for alex
+
 ## おわりに
 for alex
 
