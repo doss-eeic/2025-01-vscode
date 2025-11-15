@@ -61,6 +61,7 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { getPathForFile } from '../../../../platform/dnd/browser/dnd.js';
+import { ExplorerView } from './views/explorerView.js';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize2('newFile', "New File...");
@@ -997,6 +998,7 @@ export const renameHandler = async (accessor: ServicesAccessor) => {
 	const remoteAgentService = accessor.get(IRemoteAgentService);
 	const pathService = accessor.get(IPathService);
 	const configurationService = accessor.get(IConfigurationService);
+	const viewsService = accessor.get(IViewsService);
 
 	const stats = explorerService.getContext(false);
 	const stat = stats.length > 0 ? stats[0] : undefined;
@@ -1024,7 +1026,13 @@ export const renameHandler = async (accessor: ServicesAccessor) => {
 			}
 		}
 		if (have_next) {
-			explorerService.focusNext();
+			const view = viewsService.getViewWithId(VIEW_ID);
+			if (view) {
+				const explorerView = view as ExplorerView;
+				explorerView.focusNext();
+			} else {
+				return;
+			}
 			const next_stats = explorerService.getContext(false);
 			const next_stat = next_stats.length > 0 ? next_stats[0] : undefined;
 			if (!next_stat) {
