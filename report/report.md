@@ -66,12 +66,15 @@ for alex
 
 ### Dependency Injection
 vscode のソースコードは、Dependency Injection (依存注入, DI) と呼ばれるデザインパターンで設計されています。
-具体的には、`platform` が提供する Service を、各クラスのコンストラクタ引数として受け取る形で依存性を表現しています。
+
+DI とは、あるクラス A が別のクラス B に依存している場合に、A 内で B を構築するのではなく、A のコンストラクタ等で B の構築済みインスタンスを引数として受けとるデザインパターンです。これにより、クラス間の結合度を低減することができます。
+
+具体的に vscode では、`platform` が提供する Service を、各クラスのコンストラクタ引数として受け取る形で依存性を表現しています。
 
 ## 開発環境の整備
 開発を開始するにあたっての環境構築では、[こちらのドキュメント](https://github.com/microsoft/vscode/wiki/How-to-Contribute)を参照しました。
 
-必要なツールのインストールとレポジトリのクローンを終えたら、ビルドと実行を行っていきます。
+上記のドキュメントに従って必要なツールのインストールとレポジトリのクローンを終えたら、ビルドと実行を行っていきます。
 
 まずビルドは以下のコマンドで行います。
 
@@ -100,7 +103,9 @@ UI まわりのデバッグでは、これを使わないとかなり厳しい�
 ファイルエクスプローラ部分の機能なので、`workbench` レイヤに絞ります。
 
 まず、ファイル名の編集状態に入る処理のスタート地点を探しました。
-編集状態に入る際のキーボードショートカット（F2キー）に注目し、`KeyCode.F2` というキーワードで検索を行いました。
+編集状態に入る際のキーボードショートカット（F2キー）に注目しました。
+`F2` というキーワードでまず検索をかけ、キーボードの各キーは `base/common/keyCode.ts` に定義された `KeyCode` という enum で管理されているらしいことを把握しました。
+そのため、`KeyCode.F2` というキーワードで再度検索を行いました。
 その結果、`workbench/contrib/files/browser/fileActions.contribution.ts` に関連コードを発見しました。
 そこから `workbench/contribu/files/browser/fileActions.ts` に定義された `renameHandler` 関数を特定しました。
 
@@ -109,31 +114,72 @@ UI まわりのデバッグでは、これを使わないとかなり厳しい�
 その結果、`workbench/contrib/files/browser/views/explorerViewer.ts` に定義された `FilesRenderer` クラスを特定しました。
 
 ### 編集状態に入る際の処理の詳細を追う
-1. `renameHandler` は、`explorerService.getContext` からエクスプローラ部分で現在フォーカス中のファイルの情報を取得します。そして、`explorerService.setEditable` 関数に選択中のファイル情報と、編集終了時に呼んでもらうコールバック関数 (`onFinish`) を渡します。
-1. `explorerService.setEditable` 関数は、指定されたファイルを「編集状態」として、`onFinish` と共に内部に記憶しておきます。そのうえで、`ExplorerView.setEditable` 関数に編集したいファイルの情報を転送します。 ※「編集状態」にあるファイルは多くても1つのみです。
-1. `ExplorerView.setEditable` 関数は、渡されたファイルの**親ディレクトリ**を指定して、エクスプローラのツリーコンポーネントについて、そのディレクトリ以下の部分の再レンダリングを走らせます。このタイミングで「どのファイルを編集したいのか」という情報は引数のバケツリレーからは失われます。
-1. かなりのコールスタックを積み重ねて、ツリーの再レンダリング処理は `workbench/contrib/files/browser/views/explorerViewer.ts` の `FilesRenderer.renderElement` 関数に至ります。ここで `explorerSerivice.getEditableData` 関数により、「編集状態」にあるファイルの情報を問い合わせて取得します。そして、これに一致するファイルのツリーコンポーネントの場合のみ、`FilesRenderer.renderInputBox` 関数を呼び出します。この際に、先述の `onFinish` も渡します。
+Chrome Developer Tools を使って、`renameHandler` の冒頭にブレークポイントをセットし、ステップイン/アウト/オーバーを行いながら、編集状態に入っていく処理の詳細を調べました。
+
+1. `renameHandler` は、`explorerService.getContext` からエクスプローラ部分で現在フォーカス中のファイルの情報を取得します。
+そして、`explorerService.setEditable` 関数に選択中のファイル情報と、編集終了時に呼んでもらうコールバック関数 (`onFinish`) を渡します。
+1. `explorerService.setEditable` 関数は、指定されたファイルを「編集状態」として、`onFinish` と共に内部に記憶しておきます。
+そのうえで、`ExplorerView.setEditable` 関数に編集したいファイルの情報を転送します。
+※「編集状態」にあるファイルは多くても1つのみです。
+1. `ExplorerView.setEditable` 関数は、渡されたファイルの**親ディレクトリ**を指定して、エクスプローラのツリーコンポーネントについて、そのディレクトリ以下の部分の再レンダリングを走らせます。
+このタイミングで「どのファイルを編集したいのか」という情報は、引数からは失われます。
+1. かなりのコールスタックを積み重ねて、ツリーの再レンダリング処理は `workbench/contrib/files/browser/views/explorerViewer.ts` の `FilesRenderer.renderElement` 関数に至ります。
+ここで `explorerSerivice.getEditableData` 関数により、「編集状態」にあるファイルの情報を問い合わせて取得します。
+そして、これに一致するファイルのツリーコンポーネントの場合のみ、`FilesRenderer.renderInputBox` 関数を呼び出します。
+この際に、先述の `onFinish` も渡します。
+1. 編集したいファイルのエクスプローラ内コンポーネントの位置に、ファイル名の編集用の入力ボックスが表示されます。
+
+`FilesRenderer.renderElement` で `explorerService` に再問合せしているという構造を把握するまで、
+「編集したいファイルの情報が引数から抜け落ちてしまっているのにどうして編集したいファイルが分かるんだろう？」とかなり混乱させられました。
+
+また、再レンダリングの制御フローを調べる際、はじめは一つずつステップイン等を使って追っていました。
+しかし、再帰呼び出しが多く存在しており、ゴールである `renderInputBox` に至るまでの全体像がなかなか把握できませんでした。
+そこで `renderInputBox` の冒頭にブレークポイントを置いて、その時点におけるコールスタックを確認する方法に切り替えました。
+これにより、`renameHandler` から `renderInputBox` までの制御フローを一気に確認することができ、処理の要となる `FilesRenderer.renderElement` 関数を効率的に発見できました。
 
 ### 編集状態を終える際の処理の詳細を追う
-1. 編集状態でエンターキーやエスケープキーを押すと、`FilesRenderer.renderInputBox` 内の `DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent)` の箇所で定義されているリスナーがトリガされ、`done` 関数が呼ばれます。
+1. 編集状態でエンターキーやエスケープキーを押すと、`FilesRenderer.renderInputBox` 内の `DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent)` の箇所で定義されているリスナーがトリガされ、結果として `done` 関数が呼ばれます。
 1. `done` 関数では、入力ボックスの中身（新しいファイル名）などを引数に渡して `onFinish` を呼び出します。
 1. `onFinish` は、ファイルの読み書きAPIを呼んでファイル名の変更を行った後、`explorerService.setEditable` に `null` を渡して「編集状態」をクリアします。
 
 ### コード変更
-一連の処理の最後の、`explorerService.setEditable` に `null` を渡して「編集状態」をクリアする部分に注目しました。
-名前の編集が完了したファイルの次のファイル情報を `null` の代わりに渡せば、ツリーの再レンダリングによって次のファイル用の入力ボックスをレンダリングさせ、次のファイルの編集状態にスムーズに遷移することができます。
+以上の調査結果を踏まえて、現在編集中のファイルの次のファイルを `explorerService.setEditable` に渡してツリーの再レンダリングを発生させれば良いだろうという見当を立てました。
 
-「次のファイル」を取得するにあたっては、既存コードの「フォーカス中のファイル情報の取得」の機能を再利用するために、「フォーカスを１つ進める」という処理を、情報取得前に入れることで実装しました。具体的には、以下のようにして実装しました。
+まず、`FilesRenderer.renderInputBox` 内の先述のリスナーに、Tab キーのリスナーを追加し、基本的な動作は Enter キーと同様に設定しました。
+
+始めは、この Tab キーの処理部分に直接、次ファイルの `setEditable` 呼び出しを実装していました。
+しかし、Chrome Developer Tools でブレークポイントを貼って確認したところ、Tab キーを押すと計 4 回もの再レンダリングが走ってしまう現象が発生しました。
+このとき、次ファイルの入力ボックスは表示されるものの、複数回の再レンダリングの影響からかファイル名の部分が選択状態になっておらず、このままでは非常に編集がしづらい状態でした。
+
+![選択状態の入力ボックス](selected_inputbox.png)
+選択状態にある入力ボックスの例
+
+![非選択状態の入力ボックス](unselected_inputbox.png)
+選択状態が外れてしまった入力ボックスの例
+
+Chrome Developer Tools でブレークポイントを貼りながら、各レンダリングがどこから来たものか調査を試みました。
+しかし、その由来がイベントリスナー由来のもので、イベントリスナーを管理する抽象的なクラスまでしか辿れませんでした。
+張られているリスナーやトリガの関係を、この先まで調べる方法が分からず、正確な原因究明には至りませんでした。
+根本的な原因は、`setEditable` による呼び出しによって発生する再レンダリングに伴い、リスナー自身が抹消されるという構造にあったのではないかと推測しています。
+
+このような問題のため、別の設計を模索した結果、
+`onFinish` の内部で `explorerService.setEditable` に `null` を渡して「編集状態」をクリアしている部分に注目するに至りました。
+この部分で次ファイル情報を `null` の代わりに渡せば、既存のコードと全く同じタイミングで再レンダリングを走らせることができるためです。
+
+結論から言うと、このやり方が上手く動作しました。以降で少し具体的な実装内容を紹介します。
+
+`onFinish` 内で次ファイルを取得するにあたっては、既存コードの「フォーカス中のファイル情報の取得」の機能を再利用するために、「フォーカスを１つ進める」という処理を、情報取得前に入れることで実装しました。
+具体的には、以下のようにして実装しました。
+この部分に関しては、Github Copilot を利用して類似のコード箇所を検索してもらい、それを参考にしました。
 ```ts
-const viewsService = accessor.get(IViewsService);
-const view = viewsService.getViewWithId(VIEW_ID);
+const viewsService = accessor.get(IViewsService); // accessor は既存コードで renameHandler の引数として与えられている
+const view = viewsService.getViewWithId(VIEW_ID); // VIEW_ID は workbench/contrib/files/common/files.ts に既存定義がある
 const explorerView = view as ExplorerView;
-explorerView.focuxNext();
+explorerView.focusNext();
 const next_stats = explorerService.getContext(false); // 次ファイル情報
 ```
 そして `onFinish` の引数に `have_next: boolean` を追加し、false の場合には既存コードと同様の処理を行い、true の場合には上記で取得した次ファイル情報を使って `explorerService.setEditable` を呼ぶように変更しました。
 
-次に、`FilesRenderer.renderInputBox` 内の先述のリスナーに、Tabキーのリスナーを追加し`done` を呼ぶようにしました。
 `done` でも `next: boolean` を引数に追加して内部の `onFinish` の呼び出しの際に `have_next` に転送するようにしておき、既存コードにおける `done` の呼び出しでは全て false、Tabキーから呼ぶ箇所だけ true にセットしました。
 
 このとき、Tab キーのデフォルト動作である「フォーカスを次のコンポーネントに移動する」という動作を以下のコードによって無効化する必要があります。
@@ -143,6 +189,7 @@ e.preventDefault();
 実は `FilesRenderer.renderInputBox` には、「この入力ボックスからフォーカスが外れた場合には編集状態をキャンセルして終了する」という処理を走らせるためのリスナーが存在しています。
 このリスナーのおかげで、編集中にエディタ部分をクリックしたりすると、自動でファイル名の編集状態を終了してくれたりするのですが、これが上記の Tab キーのデフォルト動作と致命的なミスマッチとなってしまいます。
 そのため、無効化を入れる必要がありました。
+これの把握にもかなり時間を要してしまいました。
 
 ### 完成品
 以上のコード変更によって、このように目標の機能を実装することができました。
