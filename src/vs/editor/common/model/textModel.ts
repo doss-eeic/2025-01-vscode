@@ -74,7 +74,6 @@ export function createTextBufferFactoryFromStream(stream: ITextStream | VSBuffer
 
 		listenStream<string | VSBuffer>(stream, {
 			onData: chunk => {
-				// Here receive data
 				builder.acceptChunk((typeof chunk === 'string') ? chunk : chunk.toString());
 			},
 			onError: error => {

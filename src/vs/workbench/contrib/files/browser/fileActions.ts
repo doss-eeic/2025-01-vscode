@@ -78,7 +78,7 @@ export const UPLOAD_LABEL = nls.localize('upload', "Upload...");
 const CONFIRM_DELETE_SETTING_KEY = 'explorer.confirmDelete';
 const MAX_UNDO_FILE_SIZE = 5000000; // 5mb
 
-export async function refreshIfSeparator(value: string, explorerService: IExplorerService): Promise<void> {
+async function refreshIfSeparator(value: string, explorerService: IExplorerService): Promise<void> {
 	if (value && ((value.indexOf('/') >= 0) || (value.indexOf('\\') >= 0))) {
 		// New input contains separator, multiple resources will get created workaround for #68204
 		await explorerService.refresh();
@@ -1003,7 +1003,6 @@ export const renameHandler = async (accessor: ServicesAccessor) => {
 	if (!stat) {
 		return;
 	}
-	console.log('stat at RenameHandler', stat);
 
 	const os = (await remoteAgentService.getEnvironment())?.os ?? OS;
 

@@ -696,7 +696,6 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 	 * If the item is passed we refresh only that level of the tree, otherwise we do a full refresh.
 	 */
 	refresh(recursive: boolean, item?: ExplorerItem, cancelEditing: boolean = true): Promise<void> {
-		console.log('ExplorerView.refresh', recursive, item, cancelEditing);
 		if (!this.tree || !this.isBodyVisible() || (item && !this.tree.hasNode(item)) || (this.findProvider?.isShowingFilterResults() && recursive)) {
 			// Tree node doesn't exist yet, when it becomes visible we will refresh
 			return Promise.resolve(undefined);
@@ -707,7 +706,6 @@ export class ExplorerView extends ViewPane implements IExplorerView {
 		}
 
 		const toRefresh = item || this.tree.getInput();
-		console.log('-> refreshing', toRefresh);
 		return this.tree.updateChildren(toRefresh, recursive, !!item);
 	}
 

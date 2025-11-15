@@ -792,7 +792,6 @@ export class AsyncDataTree<TInput, T, TFilterData = void> implements IDisposable
 	}
 
 	async updateChildren(element: TInput | T = this.root.element, recursive = true, rerender = false, options?: IAsyncDataTreeUpdateChildrenOptions<T>): Promise<void> {
-		console.log('AsyncDataTree.updateChildren: ', { element, recursive, rerender, options });
 		await this._updateChildren(element, recursive, rerender, undefined, options);
 	}
 

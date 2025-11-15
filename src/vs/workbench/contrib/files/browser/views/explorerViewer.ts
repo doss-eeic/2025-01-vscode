@@ -74,10 +74,6 @@ import { IContextKey, IContextKeyService } from '../../../../../platform/context
 import { CountBadge } from '../../../../../base/browser/ui/countBadge/countBadge.js';
 import { listFilterMatchHighlight, listFilterMatchHighlightBorder } from '../../../../../platform/theme/common/colorRegistry.js';
 import { asCssVariable } from '../../../../../platform/theme/common/colorUtils.js';
-// import * as nls from '../../../../../nls.js';
-// import * as resources from '../../../../../base/common/resources.js';
-// import { IPathService } from '../../../../services/path/common/pathService.js';
-// import { IRemoteAgentService } from '../../../../services/remote/common/remoteAgentService.js';
 
 export class ExplorerDelegate implements IListVirtualDelegate<ExplorerItem> {
 
@@ -860,9 +856,6 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		@IWorkspaceContextService private readonly contextService: IWorkspaceContextService,
 		@IContextMenuService private readonly contextMenuService: IContextMenuService,
 		@IInstantiationService private readonly instantiationService: IInstantiationService,
-		// @IPathService private readonly pathService: IPathService,
-		// @IRemoteAgentService private readonly remoteAgentService: IRemoteAgentService,
-		// @INotificationService private readonly notificationService: INotificationService
 	) {
 		this.config = this.configurationService.getValue<IFilesConfiguration>();
 
