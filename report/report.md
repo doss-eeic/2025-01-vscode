@@ -247,13 +247,29 @@ vscodeでは，このTokenizationを利用して，シンタックスハイラ�
 #### file読み込み部分の特定
 
 ```bash
-rg readFile
+rg readFile -g '*.ts' --max-filesize=1M
 ```
 
 上記のコマンドを実行し，vscodeのソースコード全体からreadFileに関するコードを検索し，
 それらの中から関連度の高そうなコードにbreakpointを設定し，実際にfileを開いたときに，
 どのコードが実行されるかを調査しました．
-**要出典: どんな実行結果が得られるかを貼ってもよいか．**
+
+その結果，`src/vs/platform/files/common/fileService.ts`がinterfaceとして，
+
+```ts
+FileService.readFile;
+FileService.readFileStream;
+FileService.readFileBuffer;
+FileService.readFileUnbuffered;
+```
+
+等の関数を提供しており，mac及び，linuxのDesktop versionにおけるfileの読み出しの実態は，`src/vs/platform/files/common/diskFileSystemProviderClient.ts`にある，
+
+```ts
+DiskFileSystemProviderClient.readFileStream;
+```
+
+が呼び出されていることがわかりました．
 
 #### file書き込みの制限部分の特定
 
