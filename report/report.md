@@ -335,7 +335,7 @@ FilesConfigurationService.isReadonly;
 1. `readFileStream`関数が呼び出される
 1. streamオブジェクトを生成
 1. 非同期で，remote sideからfileのdataを受け取るためのlistenerを登録
-   listener内で，dataを受け取ったらstreamに書き込み，end or errorを受け取ったらstreamを閉じる
+   - listener内で，dataを受け取ったらstreamに書き込み，end or errorを受け取ったらstreamを閉じる
 1. streamオブジェクトを返す
 
 となっています．
