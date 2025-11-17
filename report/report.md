@@ -338,6 +338,8 @@ FilesConfigurationService.isReadonly;
    listener内で，dataを受け取ったらstreamに書き込み，end or errorを受け取ったらstreamを閉じる
 1. streamオブジェクトを返す
 
+となっています．
+
 この流れの中で，fileの読み込みを制限するために，listener内でdataを受け取ったときに，
 読み込んだdataのサイズが，あらかじめ設定した閾値を超えていたら，streamに書き込まないようにしました．
 具体的には，以下のように実装しました．
