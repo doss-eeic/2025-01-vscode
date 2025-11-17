@@ -344,8 +344,7 @@ FilesConfigurationService.isReadonly;
 
 ```ts
 	readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
-		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
-		const disposables = new DisposableStore();
+		/// ... 省略 ...
 
 		let bytesRemain = opts.limits?.size ?? Number.MAX_SAFE_INTEGER;
 		// Reading as file stream goes through an event to the remote side
@@ -365,16 +364,7 @@ FilesConfigurationService.isReadonly;
 
 			// end or error
 			else {
-				if (dataOrErrorOrEnd === 'end') {
-					stream.end();
-				} else {
-					let error: Error;
-
-					/// ...Error処理の省略...
-				}
-
-				// Signal to the remote side that we no longer listen
-				disposables.dispose();
+				/// ... End or error 処理 ...
 			}
 		}));
 
