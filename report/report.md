@@ -273,16 +273,23 @@ DiskFileSystemProviderClient.readFileStream;
 
 #### file書き込みの制限部分の特定
 
-こちらのほうは，file権限の管理を行っているコードの調査をシステムコールからたどることで調査を行いました．
-**具体的にシステムコールを行っている関数をはる**
+こちらのほうは，file権限の管理を行っているコードの調査を上記で見つけた，`src/vs/platform/files/common/fileService.ts`から調査を始めました．
+その中で，fileの権限を管理しているコードとして，
+
+```ts
+FileService.validateReadFile;
+```
+
+があり，この関数がfileが "Readonly" かどうかを判定していることがわかりました．
+
 最終的に，frontend側でfileの書き込みを制限しているコードは，
+`/src/vs/workbench/services/filesConfiguration/common/filesConfigurationService.ts`の中の，
 
 ```ts
 FilesConfigurationService.isReadonly;
 ```
 
 であることがわかりました．
-**要file path**
 
 ### 読み込みの制限の実装
 
