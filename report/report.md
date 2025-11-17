@@ -337,9 +337,10 @@ FilesConfigurationService.isReadonly;
 1. 非同期で，remote sideからfileのdataを受け取るためのlistenerを登録
    listener内で，dataを受け取ったらstreamに書き込み，end or errorを受け取ったらstreamを閉じる
 1. streamオブジェクトを返す
-   この流れの中で，fileの読み込みを制限するために，listener内でdataを受け取ったときに，
-   読み込んだdataのサイズが，あらかじめ設定した閾値を超えていたら，streamに書き込まないようにしました．
-   具体的には，以下のように実装しました．
+
+この流れの中で，fileの読み込みを制限するために，listener内でdataを受け取ったときに，
+読み込んだdataのサイズが，あらかじめ設定した閾値を超えていたら，streamに書き込まないようにしました．
+具体的には，以下のように実装しました．
 
 ```ts
 	readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
