@@ -346,12 +346,14 @@ FilesConfigurationService.isReadonly;
 	readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
 		/// ... 省略 ...
 
+		// 追加部分: 読み込み可能なbyte数の上限を設定
 		let bytesRemain = opts.limits?.size ?? Number.MAX_SAFE_INTEGER;
 		// Reading as file stream goes through an event to the remote side
 		disposables.add(this.channel.listen<ReadableStreamEventPayload<VSBuffer>>('readFileStream', [resource, opts])(dataOrErrorOrEnd => {
 
 			// data
 			if (dataOrErrorOrEnd instanceof VSBuffer) {
+				// 追加部分: 読み込み可能なbyte数を超えていたら，streamに書き込まない
 				if (bytesRemain < dataOrErrorOrEnd.byteLength) {
 					stream.write(dataOrErrorOrEnd.slice(0, bytesRemain).buffer);
 					bytesRemain = 0;
