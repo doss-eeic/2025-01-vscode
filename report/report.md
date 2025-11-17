@@ -293,6 +293,96 @@ FilesConfigurationService.isReadonly;
 
 ### 読み込みの制限の実装
 
+もともとの`src/vs/platform/files/common/diskFileSystemProviderClient.ts`の中の，
+`readFileStream`関数は，以下のようになっています．
+
+```ts
+	readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
+		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
+		const disposables = new DisposableStore();
+
+		// Reading as file stream goes through an event to the remote side
+		disposables.add(this.channel.listen<ReadableStreamEventPayload<VSBuffer>>('readFileStream', [resource, opts])(dataOrErrorOrEnd => {
+
+			// data
+			if (dataOrErrorOrEnd instanceof VSBuffer) {
+				stream.write(dataOrErrorOrEnd.buffer);
+			}
+
+			// end or error
+			else {
+				if (dataOrErrorOrEnd === 'end') {
+					stream.end();
+				} else {
+					let error: Error;
+
+					/// ...Error処理の省略...
+				}
+
+				// Signal to the remote side that we no longer listen
+				disposables.dispose();
+			}
+		}));
+
+		/// ... 省略 ...
+
+		return stream;
+	}
+```
+
+流れとしては，
+
+1. `readFileStream`関数が呼び出される
+1. streamオブジェクトを生成
+1. 非同期で，remote sideからfileのdataを受け取るためのlistenerを登録
+   listener内で，dataを受け取ったらstreamに書き込み，end or errorを受け取ったらstreamを閉じる
+1. streamオブジェクトを返す
+   この流れの中で，fileの読み込みを制限するために，listener内でdataを受け取ったときに，
+   読み込んだdataのサイズが，あらかじめ設定した閾値を超えていたら，streamに書き込まないようにしました．
+   具体的には，以下のように実装しました．
+
+```ts
+	readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
+		const stream = newWriteableStream<Uint8Array>(data => VSBuffer.concat(data.map(data => VSBuffer.wrap(data))).buffer);
+		const disposables = new DisposableStore();
+
+		let bytesRemain = opts.limits?.size ?? Number.MAX_SAFE_INTEGER;
+		// Reading as file stream goes through an event to the remote side
+		disposables.add(this.channel.listen<ReadableStreamEventPayload<VSBuffer>>('readFileStream', [resource, opts])(dataOrErrorOrEnd => {
+
+			// data
+			if (dataOrErrorOrEnd instanceof VSBuffer) {
+				if (bytesRemain < dataOrErrorOrEnd.byteLength) {
+					stream.write(dataOrErrorOrEnd.slice(0, bytesRemain).buffer);
+					bytesRemain = 0;
+					stream.end();
+				} else {
+					stream.write(dataOrErrorOrEnd.buffer);
+					bytesRemain -= dataOrErrorOrEnd.byteLength;
+				}
+			}
+
+			// end or error
+			else {
+				if (dataOrErrorOrEnd === 'end') {
+					stream.end();
+				} else {
+					let error: Error;
+
+					/// ...Error処理の省略...
+				}
+
+				// Signal to the remote side that we no longer listen
+				disposables.dispose();
+			}
+		}));
+
+		/// ... 省略 ...
+
+		return stream;
+	}
+```
+
 ### editの制限の実装
 
 ## おわりに
