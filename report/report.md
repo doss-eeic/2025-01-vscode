@@ -380,6 +380,77 @@ FilesConfigurationService.isReadonly;
 
 ### editの制限の実装
 
+もともとの`/src/vs/workbench/services/filesConfiguration/common/filesConfigurationService.ts`の中の，
+
+```ts
+	isReadonly(resource: URI, stat?: IBaseFileStat): boolean | IMarkdownString {
+
+		// if the entire file system provider is readonly, we respect that
+		// and do not allow to change readonly. we take this as a hint that
+		// the provider has no capabilities of writing.
+		const provider = this.fileService.getProvider(resource.scheme);
+		if (provider && hasReadonlyCapability(provider)) {
+			return provider.readOnlyMessage ?? FilesConfigurationService.READONLY_MESSAGES.providerReadonly;
+		}
+
+		// session override always wins over the others
+		const sessionReadonlyOverride = this.sessionReadonlyOverrides.get(resource);
+		if (typeof sessionReadonlyOverride === 'boolean') {
+			return sessionReadonlyOverride === true ? FilesConfigurationService.READONLY_MESSAGES.sessionReadonly : false;
+		}
+		/// ... 省略 ...
+
+		return false;
+	}
+```
+
+の中で，fileが"Readonly"かどうかを判定しています．
+
+いくつかの条件でfileが"Readonly"になるようになっていますが，
+上で表示しているものは，file system provider自体が"Readonly"である場合と，
+session overrideで"Readonly"に設定されている場合の判定を行っています．
+
+ここで，file sizeがあらかじめ設定した閾値を超えていたら，"Readonly"と判定するようにし，また，session overrideでoverrideできるようにするために，
+以下のように実装しました．
+
+```ts
+	isReadonly(resource: URI, stat?: IBaseFileStat): boolean | IMarkdownString {
+
+		/// ...system provider readonlyの判定部分...
+
+		// session override always wins over the others
+		const sessionReadonlyOverride = this.sessionReadonlyOverrides.get(resource);
+		if (typeof sessionReadonlyOverride === 'boolean') {
+			return sessionReadonlyOverride === true ? FilesConfigurationService.READONLY_MESSAGES.sessionReadonly : false;
+		}
+		/// ... 省略 ...
+
+		// 追加部分: file sizeが閾値を超えていたら，Readonlyと判定
+		const configuredSizeLimitMb = this.textResourceConfigurationService.inspect<number>(resource, null, 'workbench.editorLargeFileConfirmation');
+		const bufferLimit = configuredSizeLimitMb?.value ? configuredSizeLimitMb.value * 1024 * 1024 : Number.MAX_SAFE_INTEGER;
+		if (stat!==undefined && stat.size!==undefined
+			&& stat.size > bufferLimit) {
+			return FilesConfigurationService.READONLY_MESSAGES.fileLockedLargeFile;
+		}
+
+		/// ... 省略 ...
+
+		return false;
+	}
+```
+
+なお，`FilesConfigurationService.READONLY_MESSAGES.fileLockedLargeFile`は，
+
+```ts
+		fileLockedLargeFile: { value: localize({ key: 'fileLockedLargeFile', comment: ['Please do not translate the word "command", it is part of our internal syntax which must not change', '{Locked="](command:{0})"}'] }, "Editor is read-only because the file is large. [Click here](command:{0}) to set writeable anyway.", 'workbench.action.files.setActiveEditorWriteableInSession'), isTrusted: true },
+```
+
+のように定義しました．
+これは，fileが大容量fileであるときに表示されるメッセージであり，
+"Click here"の部分をクリックすると，`workbench.action.files.setActiveEditorWriteableInSession`コマンドが実行され，
+session overrideで，fileをwriteableに設定することができます．
+このようにすることで，大容量fileであっても，ユーザが明示的にwriteableに設定した場合には，編集可能にすることができます．
+
 ## おわりに
 
 ### 感想
