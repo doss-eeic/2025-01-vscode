@@ -163,6 +163,8 @@ Chrome Developer Tools を使って、`renameHandler` の冒頭にブレーク�
 
 ### 編集状態を終える際の処理の詳細を追う
 
+同様に Chrome Developer Tools を使って調べました。
+
 1. 編集状態でエンターキーやエスケープキーを押すと、`FilesRenderer.renderInputBox` 内の `DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent)` の箇所で定義されているリスナーがトリガされ、結果として `done` 関数が呼ばれます。
 1. `done` 関数では、入力ボックスの中身（新しいファイル名）などを引数に渡して `onFinish` を呼び出します。
 1. `onFinish` は、ファイルの読み書きAPIを呼んでファイル名の変更を行った後、`explorerService.setEditable` に `null` を渡して「編集状態」をクリアします。
@@ -184,7 +186,8 @@ Chrome Developer Tools を使って、`renameHandler` の冒頭にブレーク�
 選択状態が外れてしまった入力ボックスの例
 
 Chrome Developer Tools でブレークポイントを貼りながら、各レンダリングがどこから来たものか調査を試みました。
-しかし、その由来がイベントリスナー由来のもので、イベントリスナーを管理する抽象的なクラスまでしか辿れませんでした。
+しかし、その処理はイベントをリッスンして管理する抽象的なクラスから開始していました。
+このクラスのせいで、イベントをリッスンするように登録した箇所とは関係性が断絶していました。
 張られているリスナーやトリガの関係を、この先まで調べる方法が分からず、正確な原因究明には至りませんでした。
 根本的な原因は、`setEditable` による呼び出しによって発生する再レンダリングに伴い、リスナー自身が抹消されるという構造にあったのではないかと推測しています。
 
