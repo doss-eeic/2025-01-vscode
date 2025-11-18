@@ -47,6 +47,8 @@ vscode では、メモリ上にすべてのファイル内容を読み込んで�
 また、場合によってはメモリ不足でクラッシュしてしまうこともあります。
 そこで、巨大ファイルを開く際には、ファイルの先頭指定のバイト数分だけを読み込み、残りの部分は読み込まないようにすることで、メモリ消費を抑えつつプレビューできるようにすることを目指しました。
 
+![巨大ファイル読み込みエラー](default_too_large_file.png)
+
 ## コード全体の概要と構造
 
 コード構成については、[こちらのドキュメント](https://github.com/microsoft/vscode/wiki/Source-Code-Organization)を参照しました。
@@ -231,16 +233,25 @@ e.preventDefault();
 vscodeは既存の状態においても，大容量fileを開くときに一部最適化をおこなっており，
 Tokenizationの機能が無効化されています．
 
+![Syntax Highlighting Disabled for Large Files](default_too_large_file2.png)
+
 Tokenizationとは，文章の中から単語や文節などの意味のある単位（トークン）を抽出する処理のことです．
 vscodeでは，このTokenizationを利用して，シンタックスハイライトやコード補完，リンターなどの機能を実現しています．
+
+![Syntax Highlighting Example](syntax_high_ligh.png)
+
 **要出典**
+
 しかし，大容量fileに対してTokenizationを行うと，メモリ消費が増大し，パフォーマンスが低下する可能性があります．
 そのため，vscodeは大容量fileを開くときに，Tokenizationを無効化し，メモリ消費を抑えるようにしています．
 
 また，上記で述べたように，vscodeのすべてのbufferはメモリ上に読み込まれるようになっており，
 **要出典**
 現状では，巨大fileを開くときに，メモリ消費が増大し，クラッシュする可能性があります．
+
 また，巨大fileを開くときに，読み込み時間が長くなり，ユーザビリティが低下する可能性があります．
+
+![Out of Memory Crash Example](default_large_text_crash.gif)
 
 ### コード変更箇所の特定
 
@@ -450,6 +461,31 @@ session overrideで"Readonly"に設定されている場合の判定を行って
 "Click here"の部分をクリックすると，`workbench.action.files.setActiveEditorWriteableInSession`コマンドが実行され，
 session overrideで，fileをwriteableに設定することができます．
 このようにすることで，大容量fileであっても，ユーザが明示的にwriteableに設定した場合には，編集可能にすることができます．
+
+### 完成品
+
+以上のコード変更によって，巨大fileをメモリ消費を抑えつつプレビューする機能を実装することができました．
+具体的には，以下のように動作します．
+
+fileの横に鍵マークが表示され，fileがread-onlyであることを示しています．
+
+また，途中までしかレンダリングされていないために，例1では途中で数字が，例２では変更前のほうが"THE END"まで表示されているのに対し，変更後ではそれが表示されず，文章が途中で切れていることがわかります．
+
+#### 例1
+
+- 変更前
+  ![Out of Memory Crash Example](default_large_text_crash.gif)
+
+- 変更後
+  ![巨大ファイルのプレビュー機能](enhanced_large_text_success.gif)
+
+#### 例2
+
+- 変更前
+  ![Shakespeare File Before Change](Shakes_peer_before.gif)
+
+- 変更後
+  ![Shakespeare File After Change](Shakes_peer_after.gif)
 
 ## おわりに
 
