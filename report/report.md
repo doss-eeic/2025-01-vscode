@@ -474,18 +474,22 @@ fileの横に鍵マークが表示され，fileがread-onlyであることを示
 #### 例1
 
 - 変更前
-  ![Out of Memory Crash Example](default_large_text_crash.gif)
+
+![Out of Memory Crash Example](default_large_text_crash.gif)
 
 - 変更後
-  ![巨大ファイルのプレビュー機能](enhanced_large_text_success.gif)
+
+![巨大ファイルのプレビュー機能](enhanced_large_text_success.gif)
 
 #### 例2
 
 - 変更前
-  ![Shakespeare File Before Change](Shakes_peer_before.gif)
+
+![Shakespeare File Before Change](Shakes_peer_before.gif)
 
 - 変更後
-  ![Shakespeare File After Change](Shakes_peer_after.gif)
+
+![Shakespeare File After Change](Shakes_peer_after.gif)
 
 ## おわりに
 
