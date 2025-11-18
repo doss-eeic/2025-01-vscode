@@ -233,26 +233,26 @@ e.preventDefault();
 
 ### 既存のvscodeの説明
 
-vscodeは既存の状態においても，大容量fileを開くときに一部最適化をおこなっており，
-Tokenizationの機能が無効化されています．
+vscodeは既存の状態においても、大容量fileを開くときに一部最適化をおこなっており、
+Tokenizationの機能が無効化されています。
 
 ![Syntax Highlighting Disabled for Large Files](default_too_large_file2.png)
 
-Tokenizationとは，文章の中から単語や文節などの意味のある単位（トークン）を抽出する処理のことです．
-vscodeでは，このTokenizationを利用して，シンタックスハイライトやコード補完，リンターなどの機能を実現しています．
+Tokenizationとは、文章の中から単語や文節などの意味のある単位（トークン）を抽出する処理のことです。
+vscodeでは、このTokenizationを利用して、シンタックスハイライトやコード補完、リンターなどの機能を実現しています。
 
 ![Syntax Highlighting Example](syntax_high_ligh.png)
 
 **要出典**
 
-しかし，大容量fileに対してTokenizationを行うと，メモリ消費が増大し，パフォーマンスが低下する可能性があります．
-そのため，vscodeは大容量fileを開くときに，Tokenizationを無効化し，メモリ消費を抑えるようにしています．
+しかし、大容量fileに対してTokenizationを行うと、メモリ消費が増大し、パフォーマンスが低下する可能性があります。
+そのため、vscodeは大容量fileを開くときに、Tokenizationを無効化し、メモリ消費を抑えるようにしています。
 
-また，上記で述べたように，vscodeのすべてのbufferはメモリ上に読み込まれるようになっており，
+また、上記で述べたように、vscodeのすべてのbufferはメモリ上に読み込まれるようになっており、
 **要出典**
-現状では，巨大fileを開くときに，メモリ消費が増大し，クラッシュする可能性があります．
+現状では、巨大fileを開くときに、メモリ消費が増大し、クラッシュする可能性があります。
 
-また，巨大fileを開くときに，読み込み時間が長くなり，ユーザビリティが低下する可能性があります．
+また、巨大fileを開くときに、読み込み時間が長くなり、ユーザビリティが低下する可能性があります。
 
 ![Out of Memory Crash Example](default_large_text_crash.gif)
 
@@ -264,11 +264,11 @@ vscodeでは，このTokenizationを利用して，シンタックスハイラ�
 rg readFile -g '*.ts' --max-filesize=1M
 ```
 
-上記のコマンドを実行し，vscodeのソースコード全体からreadFileに関するコードを検索し，
-それらの中から関連度の高そうなコードにbreakpointを設定し，実際にfileを開いたときに，
-どのコードが実行されるかを調査しました．
+上記のコマンドを実行し、vscodeのソースコード全体からreadFileに関するコードを検索し、
+それらの中から関連度の高そうなコードにbreakpointを設定し、実際にfileを開いたときに、
+どのコードが実行されるかを調査しました。
 
-その結果，`src/vs/platform/files/common/fileService.ts`がinterfaceとして，
+その結果、`src/vs/platform/files/common/fileService.ts`がinterfaceとして、
 
 ```ts
 FileService.readFile;
@@ -277,38 +277,38 @@ FileService.readFileBuffer;
 FileService.readFileUnbuffered;
 ```
 
-等の関数を提供しており，mac及び，linuxのDesktop versionにおけるfileの読み出しの実態は，`src/vs/platform/files/common/diskFileSystemProviderClient.ts`にある，
+等の関数を提供しており、mac及び、linuxのDesktop versionにおけるfileの読み出しの実態は、`src/vs/platform/files/common/diskFileSystemProviderClient.ts`にある、
 
 ```ts
 DiskFileSystemProviderClient.readFileStream;
 ```
 
-が呼び出されていることがわかりました．
+が呼び出されていることがわかりました。
 
 #### file書き込みの制限部分の特定
 
-こちらのほうは，file権限の管理を行っているコードの調査を上記で見つけた，`src/vs/platform/files/common/fileService.ts`から調査を始めました．
-その中で，fileの権限を管理しているコードとして，
+こちらのほうは、file権限の管理を行っているコードの調査を上記で見つけた、`src/vs/platform/files/common/fileService.ts`から調査を始めました。
+その中で、fileの権限を管理しているコードとして、
 
 ```ts
 FileService.validateReadFile;
 ```
 
-があり，この関数がfileが "Readonly" かどうかを判定していることがわかりました．
+があり、この関数がfileが "Readonly" かどうかを判定していることがわかりました。
 
-最終的に，frontend側でfileの書き込みを制限しているコードは，
-`/src/vs/workbench/services/filesConfiguration/common/filesConfigurationService.ts`の中の，
+最終的に、frontend側でfileの書き込みを制限しているコードは、
+`/src/vs/workbench/services/filesConfiguration/common/filesConfigurationService.ts`の中の、
 
 ```ts
 FilesConfigurationService.isReadonly;
 ```
 
-であることがわかりました．
+であることがわかりました。
 
 ### 読み込みの制限の実装
 
-もともとの`src/vs/platform/files/common/diskFileSystemProviderClient.ts`の中の，
-`readFileStream`関数は，以下のようになっています．
+もともとの`src/vs/platform/files/common/diskFileSystemProviderClient.ts`の中の、
+`readFileStream`関数は、以下のようになっています。
 
 ```ts
 	readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
@@ -344,19 +344,19 @@ FilesConfigurationService.isReadonly;
 	}
 ```
 
-流れとしては，
+流れとしては、
 
 1. `readFileStream`関数が呼び出される
 1. streamオブジェクトを生成
-1. 非同期で，remote sideからfileのdataを受け取るためのlistenerを登録
-   - listener内で，dataを受け取ったらstreamに書き込み，end or errorを受け取ったらstreamを閉じる
+1. 非同期で、remote sideからfileのdataを受け取るためのlistenerを登録
+   - listener内で、dataを受け取ったらstreamに書き込み、end or errorを受け取ったらstreamを閉じる
 1. streamオブジェクトを返す
 
-となっています．
+となっています。
 
-この流れの中で，fileの読み込みを制限するために，listener内でdataを受け取ったときに，
-読み込んだdataのサイズが，あらかじめ設定した閾値を超えていたら，streamに書き込まないようにしました．
-具体的には，以下のように実装しました．
+この流れの中で、fileの読み込みを制限するために、listener内でdataを受け取ったときに、
+読み込んだdataのサイズが、あらかじめ設定した閾値を超えていたら、streamに書き込まないようにしました。
+具体的には、以下のように実装しました。
 
 ```ts
 	readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
@@ -369,7 +369,7 @@ FilesConfigurationService.isReadonly;
 
 			// data
 			if (dataOrErrorOrEnd instanceof VSBuffer) {
-				// 追加部分: 読み込み可能なbyte数を超えていたら，streamに書き込まない
+				// 追加部分: 読み込み可能なbyte数を超えていたら、streamに書き込まない
 				if (bytesRemain < dataOrErrorOrEnd.byteLength) {
 					stream.write(dataOrErrorOrEnd.slice(0, bytesRemain).buffer);
 					bytesRemain = 0;
@@ -394,7 +394,7 @@ FilesConfigurationService.isReadonly;
 
 ### editの制限の実装
 
-もともとの`/src/vs/workbench/services/filesConfiguration/common/filesConfigurationService.ts`の中の，
+もともとの`/src/vs/workbench/services/filesConfiguration/common/filesConfigurationService.ts`の中の、
 
 ```ts
 	isReadonly(resource: URI, stat?: IBaseFileStat): boolean | IMarkdownString {
@@ -418,14 +418,14 @@ FilesConfigurationService.isReadonly;
 	}
 ```
 
-の中で，fileが"Readonly"かどうかを判定しています．
+の中で、fileが"Readonly"かどうかを判定しています。
 
-いくつかの条件でfileが"Readonly"になるようになっていますが，
-上で表示しているものは，file system provider自体が"Readonly"である場合と，
-session overrideで"Readonly"に設定されている場合の判定を行っています．
+いくつかの条件でfileが"Readonly"になるようになっていますが、
+上で表示しているものは、file system provider自体が"Readonly"である場合と、
+session overrideで"Readonly"に設定されている場合の判定を行っています。
 
-ここで，file sizeがあらかじめ設定した閾値を超えていたら，"Readonly"と判定するようにし，また，session overrideでoverrideできるようにするために，
-以下のように実装しました．
+ここで、file sizeがあらかじめ設定した閾値を超えていたら、"Readonly"と判定するようにし、また、session overrideでoverrideできるようにするために、
+以下のように実装しました。
 
 ```ts
 	isReadonly(resource: URI, stat?: IBaseFileStat): boolean | IMarkdownString {
@@ -439,7 +439,7 @@ session overrideで"Readonly"に設定されている場合の判定を行って
 		}
 		/// ... 省略 ...
 
-		// 追加部分: file sizeが閾値を超えていたら，Readonlyと判定
+		// 追加部分: file sizeが閾値を超えていたら、Readonlyと判定
 		const configuredSizeLimitMb = this.textResourceConfigurationService.inspect<number>(resource, null, 'workbench.editorLargeFileConfirmation');
 		const bufferLimit = configuredSizeLimitMb?.value ? configuredSizeLimitMb.value * 1024 * 1024 : Number.MAX_SAFE_INTEGER;
 		if (stat!==undefined && stat.size!==undefined
@@ -453,27 +453,27 @@ session overrideで"Readonly"に設定されている場合の判定を行って
 	}
 ```
 
-なお，`FilesConfigurationService.READONLY_MESSAGES.fileLockedLargeFile`は，
+なお、`FilesConfigurationService.READONLY_MESSAGES.fileLockedLargeFile`は、
 
 ```ts
 		fileLockedLargeFile: { value: localize({ key: 'fileLockedLargeFile', comment: ['Please do not translate the word "command", it is part of our internal syntax which must not change', '{Locked="](command:{0})"}'] }, "Editor is read-only because the file is large. [Click here](command:{0}) to set writeable anyway.", 'workbench.action.files.setActiveEditorWriteableInSession'), isTrusted: true },
 ```
 
-のように定義しました．
-これは，fileが大容量fileであるときに表示されるメッセージであり，
-"Click here"の部分をクリックすると，`workbench.action.files.setActiveEditorWriteableInSession`コマンドが実行され，
-session overrideで，fileをwriteableに設定することができます．
-このようにすることで，大容量fileであっても，ユーザが明示的にwriteableに設定した場合には，編集可能にすることができます．
+のように定義しました。
+これは、fileが大容量fileであるときに表示されるメッセージであり、
+"Click here"の部分をクリックすると、`workbench.action.files.setActiveEditorWriteableInSession`コマンドが実行され、
+session overrideで、fileをwriteableに設定することができます。
+このようにすることで、大容量fileであっても、ユーザが明示的にwriteableに設定した場合には、編集可能にすることができます。
 
 ### 完成品
 
-以上のコード変更によって，巨大fileをメモリ消費を抑えつつプレビューする機能を実装することができました．
-具体的には，以下のように動作します．
+以上のコード変更によって、巨大fileをメモリ消費を抑えつつプレビューする機能を実装することができました。
+具体的には、以下のように動作します。
 
-fileの横に鍵マークが表示されるようになり，fileがread-onlyであることを示しています．
+fileの横に鍵マークが表示されるようになり、fileがread-onlyであることを示しています。
 
-また，途中までしかレンダリングされていないために，例1では途中で数字が切れています．
-例２では変更前のほうが"THE END"まで表示されているのに対し，変更後ではそれが表示されず，文章が途中で切れていることがわかります．
+また、途中までしかレンダリングされていないために、例1では途中で数字が切れています。
+例２では変更前のほうが"THE END"まで表示されているのに対し、変更後ではそれが表示されず、文章が途中で切れていることがわかります。
 
 #### 例1
 
@@ -504,7 +504,7 @@ fileの横に鍵マークが表示されるようになり，fileがread-onlyで
 非常に難しいと実感しました。
 小規模なソフトウェアであれば、ユーティリティ関数の把握は比較的容易ですが、
 規模が大きくなるにつれて、関数の数が増え、
-どの階層でどのリソースが利用可能なのか，
+どの階層でどのリソースが利用可能なのか、
 どの関数を呼ぶことができるのかを把握するのが困難になってきます。
 
 また、TypeScriptで記述されたコードの実行フローを理解するために、
