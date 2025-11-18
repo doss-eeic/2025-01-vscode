@@ -522,6 +522,12 @@ GUIアプリケーションの開発やデバッグ手法を学ぶ良い機会�
 
 #### 機能1について
 
+この機能を開発するにあたって，開発速度を優先して`vs/workbench/contrib`外部のコードが，
+`vs/workbench/contrib`内のコードにアクセスする形で実装を行いました．
+しかし，これはvscodeのコーディング規約に反しているために，
+vscodeに取り込まれるためには再設計が必要になると考えられます．
+([参照](https://github.com/microsoft/vscode/wiki/Source-Code-Organization#vs-code-workbench-source-organisation))
+
 #### 機能2について
 
 ## 参考文献やサイトなど
