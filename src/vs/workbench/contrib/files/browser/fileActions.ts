@@ -61,6 +61,7 @@ import { Categories } from '../../../../platform/action/common/actionCommonCateg
 import { ILocalizedString } from '../../../../platform/action/common/action.js';
 import { VSBuffer } from '../../../../base/common/buffer.js';
 import { getPathForFile } from '../../../../platform/dnd/browser/dnd.js';
+import { ExplorerView } from './views/explorerView.js';
 
 export const NEW_FILE_COMMAND_ID = 'explorer.newFile';
 export const NEW_FILE_LABEL = nls.localize2('newFile', "New File...");
@@ -997,6 +998,7 @@ export const renameHandler = async (accessor: ServicesAccessor) => {
 	const remoteAgentService = accessor.get(IRemoteAgentService);
 	const pathService = accessor.get(IPathService);
 	const configurationService = accessor.get(IConfigurationService);
+	const viewsService = accessor.get(IViewsService);
 
 	const stats = explorerService.getContext(false);
 	const stat = stats.length > 0 ? stats[0] : undefined;
@@ -1006,27 +1008,48 @@ export const renameHandler = async (accessor: ServicesAccessor) => {
 
 	const os = (await remoteAgentService.getEnvironment())?.os ?? OS;
 
-	await explorerService.setEditable(stat, {
-		validationMessage: value => validateFileName(pathService, stat, value, os),
-		onFinish: async (value, success) => {
-			if (success) {
-				const parentResource = stat.parent!.resource;
-				const targetResource = resources.joinPath(parentResource, value);
-				if (stat.resource.toString() !== targetResource.toString()) {
-					try {
-						await explorerService.applyBulkEdit([new ResourceFileEdit(stat.resource, targetResource)], {
-							confirmBeforeUndo: configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo === UndoConfirmLevel.Verbose,
-							undoLabel: nls.localize('renameBulkEdit', "Rename {0} to {1}", stat.name, value),
-							progressLabel: nls.localize('renamingBulkEdit', "Renaming {0} to {1}", stat.name, value),
-						});
-						await refreshIfSeparator(value, explorerService);
-					} catch (e) {
-						notificationService.error(e);
-					}
+	async function onFinish(stat_arg: ExplorerItem, value: string, success: boolean, have_next: boolean): Promise<void> {
+		if (success) {
+			const parentResource = stat_arg.parent!.resource;
+			const targetResource = resources.joinPath(parentResource, value);
+			if (stat_arg.resource.toString() !== targetResource.toString()) {
+				try {
+					await explorerService.applyBulkEdit([new ResourceFileEdit(stat_arg.resource, targetResource)], {
+						confirmBeforeUndo: configurationService.getValue<IFilesConfiguration>().explorer.confirmUndo === UndoConfirmLevel.Verbose,
+						undoLabel: nls.localize('renameBulkEdit', "Rename {0} to {1}", stat_arg.name, value),
+						progressLabel: nls.localize('renamingBulkEdit', "Renaming {0} to {1}", stat_arg.name, value),
+					});
+					await refreshIfSeparator(value, explorerService);
+				} catch (e) {
+					notificationService.error(e);
 				}
 			}
-			await explorerService.setEditable(stat, null);
 		}
+		if (have_next) {
+			const view = viewsService.getViewWithId(VIEW_ID);
+			if (view) {
+				const explorerView = view as ExplorerView;
+				explorerView.focusNext();
+			} else {
+				return;
+			}
+			const next_stats = explorerService.getContext(false);
+			const next_stat = next_stats.length > 0 ? next_stats[0] : undefined;
+			if (!next_stat) {
+				return;
+			}
+			await explorerService.setEditable(next_stat, {
+				validationMessage: (value: string) => validateFileName(pathService, next_stat, value, os),
+				onFinish: (value, success, have_next_arg) => onFinish(next_stat, value, success, have_next_arg)
+			});
+		} else {
+			await explorerService.setEditable(stat_arg, null);
+		}
+	}
+
+	await explorerService.setEditable(stat, {
+		validationMessage: (value: string) => validateFileName(pathService, stat, value, os),
+		onFinish: (value, success, next) => onFinish(stat, value, success, next)
 	});
 };
 

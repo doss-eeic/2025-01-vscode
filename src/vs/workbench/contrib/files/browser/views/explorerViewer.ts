@@ -1090,13 +1090,13 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 		inputBox.focus();
 		inputBox.select({ start: 0, end: lastDot > 0 && !stat.isDirectory ? lastDot : value.length });
 
-		const done = createSingleCallFunction((success: boolean, finishEditing: boolean) => {
+		const done = createSingleCallFunction((success: boolean, finishEditing: boolean, next: boolean) => {
 			label.element.style.display = 'none';
 			const value = inputBox.value;
 			dispose(toDispose);
 			label.element.remove();
 			if (finishEditing) {
-				editableData.onFinish(value, success);
+				editableData.onFinish(value, success, next);
 			}
 		});
 
@@ -1139,10 +1139,15 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 					}
 				} else if (e.equals(KeyCode.Enter)) {
 					if (!inputBox.validate()) {
-						done(true, true);
+						done(true, true, false);
 					}
 				} else if (e.equals(KeyCode.Escape)) {
-					done(false, true);
+					done(false, true, false);
+				} else if (e.equals(KeyCode.Tab)) {
+					e.preventDefault();
+					if (!inputBox.validate()) {
+						done(true, true, true);
+					}
 				}
 			}),
 			DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_UP, (e: IKeyboardEvent) => {
@@ -1164,13 +1169,13 @@ export class FilesRenderer implements ICompressibleTreeRenderer<ExplorerItem, Fu
 					}
 				}
 
-				done(inputBox.isInputValid(), true);
+				done(inputBox.isInputValid(), true, false);
 			}),
 			label
 		];
 
 		return toDisposable(() => {
-			done(false, false);
+			done(false, false, false);
 		});
 	}
 
