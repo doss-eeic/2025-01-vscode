@@ -8,7 +8,7 @@
 この実験では、Visual Studio Code のソースコードをいじることで
 2つの新機能を追加しました。
 
-ここでは、コードの clone から機能の完成まで、その過程を余すことなくお伝えしていきます。
+ここでは、コードの clone から機能の完成まで、その過程をお伝えしていきます。
 同じようなことをやろうと考えている方の参考になれば幸いです！
 
 ## Visual Studio Code とは？
@@ -141,17 +141,19 @@ UI まわりのデバッグでは、これを使わないとかなり厳しい�
 Chrome Developer Tools を使って、`renameHandler` の冒頭にブレークポイントをセットし、ステップイン/アウト/オーバーを行いながら、編集状態に入っていく処理の詳細を調べました。
 
 1. `renameHandler` は、`explorerService.getContext` からエクスプローラ部分で現在フォーカス中のファイルの情報を取得します。
-   そして、`explorerService.setEditable` 関数に選択中のファイル情報と、編集終了時に呼んでもらうコールバック関数 (`onFinish`) を渡します。
-1. `explorerService.setEditable` 関数は、指定されたファイルを「編集状態」として、`onFinish` と共に内部に記憶しておきます。
+   そして、`ExplorerService.setEditable` 関数に選択中のファイル情報と、編集終了時に呼んでもらうコールバック関数 (`onFinish`) を渡します。
+1. `ExplorerService.setEditable` 関数は、指定されたファイルを「編集状態」として登録し、`onFinish` と共に内部に記憶しておきます。
    そのうえで、`ExplorerView.setEditable` 関数に編集したいファイルの情報を転送します。
-   ※「編集状態」にあるファイルは多くても1つのみです。
-1. `ExplorerView.setEditable` 関数は、渡されたファイルの**親ディレクトリ**を指定して、エクスプローラのツリーコンポーネントについて、そのディレクトリ以下の部分の再レンダリングを走らせます。
-   このタイミングで「どのファイルを編集したいのか」という情報は、引数からは失われます。
+   ※「編集状態」にあるファイルは1つまでです。
+1. `ExplorerView.setEditable` 関数は、エクスプローラのファイルツリーの再レンダリングを行う処理を呼び出します。
+この際、渡されたファイルの**親ディレクトリ**を指定して呼び出すことで、そのディレクトリ以下のツリーのみの再レンダリングで済ませています。
+したがって、このタイミングで「どのファイルを編集したいのか」という情報は、引数からは失われます。
 1. かなりのコールスタックを積み重ねて、ツリーの再レンダリング処理は `workbench/contrib/files/browser/views/explorerViewer.ts` の `FilesRenderer.renderElement` 関数に至ります。
-   ここで `explorerSerivice.getEditableData` 関数により、「編集状態」にあるファイルの情報を問い合わせて取得します。
-   そして、これに一致するファイルのツリーコンポーネントの場合のみ、`FilesRenderer.renderInputBox` 関数を呼び出します。
-   この際に、先述の `onFinish` も渡します。
-1. 編集したいファイルのエクスプローラ内コンポーネントの位置に、ファイル名の編集用の入力ボックスが表示されます。
+ここで `ExplorerSerivice.getEditableData` 関数により、「編集状態」にあるファイルの情報を問い合わせて取得します。
+そして、レンダリングすべき各ファイルについて for ループを回して、「編集状態」のファイルのツリーコンポーネントの場合のみ、`FilesRenderer.renderInputBox` 関数を呼び出して入力ボックスをレンダリングします。
+この際に、先述のコールバック関数 `onFinish` も渡します。それ以外のファイルに対しては、単にファイル名が書かれたコンポーネントをレンダリングします。
+
+1. 編集したいファイルのエクスプローラ内コンポーネントの位置に、ファイル名の編集用の入力ボックスが表示され、無事編集状態に入ります。
 
 `FilesRenderer.renderElement` で `explorerService` に再問合せしているという構造を把握するまで、
 「編集したいファイルの情報が引数から抜け落ちてしまっているのにどうして編集したいファイルが分かるんだろう？」とかなり混乱させられました。
@@ -167,11 +169,11 @@ Chrome Developer Tools を使って、`renameHandler` の冒頭にブレーク�
 
 1. 編集状態でエンターキーやエスケープキーを押すと、`FilesRenderer.renderInputBox` 内の `DOM.addStandardDisposableListener(inputBox.inputElement, DOM.EventType.KEY_DOWN, (e: IKeyboardEvent)` の箇所で定義されているリスナーがトリガされ、結果として `done` 関数が呼ばれます。
 1. `done` 関数では、入力ボックスの中身（新しいファイル名）などを引数に渡して `onFinish` を呼び出します。
-1. `onFinish` は、ファイルの読み書きAPIを呼んでファイル名の変更を行った後、`explorerService.setEditable` に `null` を渡して「編集状態」をクリアします。
+1. `onFinish` は、ファイルの読み書き API を呼んでファイル名の変更を行った後、`ExplorerService.setEditable` に `null` を渡して「編集状態」をクリアします。
 
 ### コード変更
 
-以上の調査結果を踏まえて、現在編集中のファイルの次のファイルを `explorerService.setEditable` に渡してツリーの再レンダリングを発生させれば良いだろうという見当を立てました。
+以上の調査結果を踏まえて、現在編集中のファイルの次のファイルを `ExplorerService.setEditable` に渡してツリーの再レンダリングを発生させれば良いだろうという見当を立てました。
 
 まず、`FilesRenderer.renderInputBox` 内の先述のリスナーに、Tab キーのリスナーを追加し、基本的な動作は Enter キーと同様に設定しました。
 
@@ -209,7 +211,7 @@ explorerView.focusNext();
 const next_stats = explorerService.getContext(false); // 次ファイル情報
 ```
 
-そして `onFinish` の引数に `have_next: boolean` を追加し、false の場合には既存コードと同様の処理を行い、true の場合には上記で取得した次ファイル情報を使って `explorerService.setEditable` を呼ぶように変更しました。
+そして `onFinish` の引数に `have_next: boolean` を追加し、false の場合には既存コードと同様の処理を行い、true の場合には上記で取得した次ファイル情報を使って `ExplorerService.setEditable` を呼ぶように変更しました。
 
 `done` でも `next: boolean` を引数に追加して内部の `onFinish` の呼び出しの際に `have_next` に転送するようにしておき、既存コードにおける `done` の呼び出しでは全て false、Tabキーから呼ぶ箇所だけ true にセットしました。
 
@@ -231,23 +233,23 @@ e.preventDefault();
 
 ## 機能2. 巨大ファイルをメモリ消費を抑えつつプレビューする
 
-### 既存のvscodeの説明
+### 既存の vscode の説明
 
-vscodeは既存の状態においても、大容量fileを開くときに一部最適化をおこなっており、
-Tokenizationの機能が無効化されています。
+vscode は既存の状態においても、大容量 file を開くときに一部最適化をおこなっており、
+Tokenization の機能が無効化されています。
 
 ![Syntax Highlighting Disabled for Large Files](default_too_large_file2.png)
 
-Tokenizationとは、文章の中から単語や文節などの意味のある単位（トークン）を抽出する処理のことです。
-vscodeでは、このTokenizationを利用して、シンタックスハイライトやコード補完、リンターなどの機能を実現しています。
+Tokenization とは、文章の中から単語や文節などの意味のある単位（トークン）を抽出する処理のことです。
+vscode では、この Tokenization を利用して、シンタックスハイライトやコード補完、リンターなどの機能を実現しています。
+
+しかし、大容量 file に対して Tokenization を行うと、メモリ消費が増大し、パフォーマンスが低下する可能性があります。
+そのため、vscode は大容量 file を開くときに、Tokenization を無効化し、メモリ消費を抑えるようにしています。
 
 ![Syntax Highlighting Example](syntax_high_ligh.png)
 
-しかし、大容量fileに対してTokenizationを行うと、メモリ消費が増大し、パフォーマンスが低下する可能性があります。
-そのため、vscodeは大容量fileを開くときに、Tokenizationを無効化し、メモリ消費を抑えるようにしています。(参考: vscode/src/vs/editor/common/model/testModel.ts:L340)
-
-また、上記で述べたように、vscodeのすべてのbufferはメモリ上に読み込まれるようになっており、
-現状では、巨大fileを開くときに、メモリ消費が増大し、クラッシュする可能性があります。
+また、上記で述べたように、vscode のすべての buffer はメモリ上に読み込まれるようになっており、
+現状では、巨大 file を開くときに、メモリ消費が増大し、クラッシュする可能性があります。
 
 また、巨大fileを開くときに、読み込み時間が長くなり、ユーザビリティが低下する可能性があります。
 
@@ -261,11 +263,11 @@ vscodeでは、このTokenizationを利用して、シンタックスハイラ�
 rg readFile -g '*.ts' --max-filesize=1M
 ```
 
-上記のコマンドを実行し、vscodeのソースコード全体からreadFileに関するコードを検索し、
+上記のコマンドを実行し、vscode のソースコード全体から readFile に関するコードを検索し、
 それらの中から関連度の高そうなコードにbreakpointを設定し、実際にfileを開いたときに、
 どのコードが実行されるかを調査しました。
 
-その結果、`src/vs/platform/files/common/fileService.ts`がinterfaceとして、
+その結果、`platform/files/common/fileService.ts`が interface として、
 
 ```ts
 FileService.readFile;
@@ -274,7 +276,8 @@ FileService.readFileBuffer;
 FileService.readFileUnbuffered;
 ```
 
-等の関数を提供しており、mac及び、linuxのDesktop versionにおけるfileの読み出しの実態は、`src/vs/platform/files/common/diskFileSystemProviderClient.ts`にある、
+等の関数を提供しており、mac 及び linux の Desktop version におけるfileの読み出しの実態は、
+`platform/files/common/diskFileSystemProviderClient.ts`にある、
 
 ```ts
 DiskFileSystemProviderClient.readFileStream;
@@ -282,19 +285,19 @@ DiskFileSystemProviderClient.readFileStream;
 
 が呼び出されていることがわかりました。
 
-#### file書き込みの制限部分の特定
+#### file 書き込みの制限部分の特定
 
-こちらのほうは、file権限の管理を行っているコードの調査を上記で見つけた、`src/vs/platform/files/common/fileService.ts`から調査を始めました。
-その中で、fileの権限を管理しているコードとして、
+こちらのほうは、file 権限の管理を行っているコードの調査を上記で見つけた、`platform/files/common/fileService.ts` から調査を始めました。
+その中で、file の権限を管理しているコードとして、
 
 ```ts
 FileService.validateReadFile;
 ```
 
-があり、この関数がfileが "Readonly" かどうかを判定していることがわかりました。
+があり、この関数が file が "Readonly" かどうかを判定していることがわかりました。
 
-最終的に、frontend側でfileの書き込みを制限しているコードは、
-`/src/vs/workbench/services/filesConfiguration/common/filesConfigurationService.ts`の中の、
+最終的に、frontend 側で file の書き込みを制限しているコードは、
+`workbench/services/filesConfiguration/common/filesConfigurationService.ts` の中の、
 
 ```ts
 FilesConfigurationService.isReadonly;
@@ -304,8 +307,8 @@ FilesConfigurationService.isReadonly;
 
 ### 読み込みの制限の実装
 
-もともとの`src/vs/platform/files/common/diskFileSystemProviderClient.ts`の中の、
-`readFileStream`関数は、以下のようになっています。
+もともとの `platform/files/common/diskFileSystemProviderClient.ts` の中の、
+`readFileStream` 関数は、以下のようになっています。
 
 ```ts
 	readFileStream(resource: URI, opts: IFileReadStreamOptions, token: CancellationToken): ReadableStreamEvents<Uint8Array> {
@@ -343,16 +346,16 @@ FilesConfigurationService.isReadonly;
 
 流れとしては、
 
-1. `readFileStream`関数が呼び出される
+1. `readFileStream` 関数が呼び出される
 1. streamオブジェクトを生成
-1. 非同期で、remote sideからfileのdataを受け取るためのlistenerを登録
-   - listener内で、dataを受け取ったらstreamに書き込み、end or errorを受け取ったらstreamを閉じる
-1. streamオブジェクトを返す
+1. 非同期で、remote side から file の data を受け取るための listener を登録
+   - listener 内で、data を受け取ったら stream に書き込み、end or error を受け取ったら stream を閉じる
+1. stream オブジェクトを返す
 
 となっています。
 
-この流れの中で、fileの読み込みを制限するために、listener内でdataを受け取ったときに、
-読み込んだdataのサイズが、あらかじめ設定した閾値を超えていたら、streamに書き込まないようにしました。
+この流れの中で、file の読み込みを制限するために、listener 内で data を受け取ったときに、
+読み込んだ data のサイズが、あらかじめ設定した閾値を超えていたら、stream に書き込まないようにしました。
 具体的には、以下のように実装しました。
 
 ```ts
@@ -391,7 +394,7 @@ FilesConfigurationService.isReadonly;
 
 ### editの制限の実装
 
-もともとの`/src/vs/workbench/services/filesConfiguration/common/filesConfigurationService.ts`の中の、
+もともとの `workbench/services/filesConfiguration/common/filesConfigurationService.ts` の中の、
 
 ```ts
 	isReadonly(resource: URI, stat?: IBaseFileStat): boolean | IMarkdownString {
@@ -415,14 +418,14 @@ FilesConfigurationService.isReadonly;
 	}
 ```
 
-の中で、fileが"Readonly"かどうかを判定しています。
+の中で、file が "Readonly" かどうかを判定しています。
 
-いくつかの条件でfileが"Readonly"になるようになっていますが、
-上で表示しているものは、file system provider自体が"Readonly"である場合と、
-session overrideで"Readonly"に設定されている場合の判定を行っています。
+いくつかの条件で file が "Readonly" になるようになっていますが、
+上で表示しているものは、file system provider 自体が "Readonly" である場合と、
+session override で "Readonly" に設定されている場合の判定を行っています。
 
-ここで、file sizeがあらかじめ設定した閾値を超えていたら、"Readonly"と判定するようにし、また、session overrideでoverrideできるようにするために、
-以下のように実装しました。
+ここで、file size があらかじめ設定した閾値を超えていたら、"Readonly" と判定するようにし、
+また、session override で override できるようにするために、以下のように実装しました。
 
 ```ts
 	isReadonly(resource: URI, stat?: IBaseFileStat): boolean | IMarkdownString {
@@ -450,27 +453,27 @@ session overrideで"Readonly"に設定されている場合の判定を行って
 	}
 ```
 
-なお、`FilesConfigurationService.READONLY_MESSAGES.fileLockedLargeFile`は、
+なお、`FilesConfigurationService.READONLY_MESSAGES.fileLockedLargeFile` は、
 
 ```ts
 		fileLockedLargeFile: { value: localize({ key: 'fileLockedLargeFile', comment: ['Please do not translate the word "command", it is part of our internal syntax which must not change', '{Locked="](command:{0})"}'] }, "Editor is read-only because the file is large. [Click here](command:{0}) to set writeable anyway.", 'workbench.action.files.setActiveEditorWriteableInSession'), isTrusted: true },
 ```
 
 のように定義しました。
-これは、fileが大容量fileであるときに表示されるメッセージであり、
-"Click here"の部分をクリックすると、`workbench.action.files.setActiveEditorWriteableInSession`コマンドが実行され、
-session overrideで、fileをwriteableに設定することができます。
-このようにすることで、大容量fileであっても、ユーザが明示的にwriteableに設定した場合には、編集可能にすることができます。
+これは、file が大容量 file であるときに表示されるメッセージであり、
+"Click here" の部分をクリックすると、`workbench.action.files.setActiveEditorWriteableInSession` コマンドが実行され、
+session override で、file を writeable に設定することができます。
+このようにすることで、大容量 file であっても、ユーザが明示的に writeable に設定した場合には、編集可能にすることができます。
 
 ### 完成品
 
-以上のコード変更によって、巨大fileをメモリ消費を抑えつつプレビューする機能を実装することができました。
+以上のコード変更によって、巨大 file をメモリ消費を抑えつつプレビューする機能を実装することができました。
 具体的には、以下のように動作します。
 
-fileの横に鍵マークが表示されるようになり、fileがread-onlyであることを示しています。
+file の横に鍵マークが表示されるようになり、file が read-only であることを示しています。
 
 また、途中までしかレンダリングされていないために、例1では途中で数字が切れています。
-例２では変更前のほうが"THE END"まで表示されているのに対し、変更後ではそれが表示されず、文章が途中で切れていることがわかります。
+例２では変更前のほうが "THE END" まで表示されているのに対し、変更後ではそれが表示されず、文章が途中で切れていることがわかります。
 
 #### 例1
 
@@ -505,19 +508,23 @@ fileの横に鍵マークが表示されるようになり、fileがread-onlyで
 どの関数を呼ぶことができるのかを把握するのが困難になってきます。
 
 また、TypeScriptで記述されたコードの実行フローを理解するために、
-Chrome Developer Toolsの活用方法を学びました。
-Chrome Developer Toolsを使うことで、ブレークポイントの設定、
+Chrome Developer Tools の活用方法を学びました。
+Chrome Developer Tools を使うことで、ブレークポイントの設定、
 コールスタックの確認、変数の値のチェックなどが可能となり、
 複雑なフローの把握が容易になりました。
 
-さらに、今回対象としたvscodeはGUIアプリケーションであり、
-普段はC++のCUIアプリケーションを扱うことが多い我々にとって、
-GUIアプリケーションの開発やデバッグ手法を学ぶ良い機会となりました。
-加えて、TypeScriptの型システムや非同期処理の扱い方についても理解を深めることができました。
+さらに、今回対象とした vscode は GUI アプリケーションであり、
+今まで CUI アプリケーションしか開発してこなかった自分たちにとって、
+開発やデバッグ手法を学ぶ良い機会となりました。
+加えて、TypeScript の型システムや非同期処理の扱い方についても理解を深めることができました。
 
 ### 今後の展望
 
 #### 機能1について
+Windows エクスプローラでは、ファイル名を変更しても、表示されているファイル群の並び順は更新されません。
+それに対して vscode はファイル名の変更時にツリーの再レンダリングが走るため、変更後のファイル名に応じて全体の並び順が変化します。
+このような場合には、Tab を押した時に次にどのファイルにフォーカスが当たるのかが認識しづらいという問題があります。
+この点を修正できたら、本家の vscode レポジトリに PR を送ることも検討したいと思っています。
 
 #### 機能2について
 
