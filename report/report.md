@@ -243,13 +243,10 @@ vscodeでは、このTokenizationを利用して、シンタックスハイラ�
 
 ![Syntax Highlighting Example](syntax_high_ligh.png)
 
-**要出典**
-
 しかし、大容量fileに対してTokenizationを行うと、メモリ消費が増大し、パフォーマンスが低下する可能性があります。
-そのため、vscodeは大容量fileを開くときに、Tokenizationを無効化し、メモリ消費を抑えるようにしています。
+そのため、vscodeは大容量fileを開くときに、Tokenizationを無効化し、メモリ消費を抑えるようにしています。(参考: vscode/src/vs/editor/common/model/testModel.ts:L340)
 
 また、上記で述べたように、vscodeのすべてのbufferはメモリ上に読み込まれるようになっており、
-**要出典**
 現状では、巨大fileを開くときに、メモリ消費が増大し、クラッシュする可能性があります。
 
 また、巨大fileを開くときに、読み込み時間が長くなり、ユーザビリティが低下する可能性があります。
